@@ -108,3 +108,32 @@ def test_real_coarse_mesh_confirms_not_applicable(evidence):
     cm = evidence["coarse_mesh_check"]
     assert cm["qoi_error"] < config.QOI_L2_TOL
     assert cm["overall_pass"] is True
+
+
+# --------------------------------------------------------------------------- #
+# Synthetic Couette run (CLI mock/replay path, no container)                  #
+# --------------------------------------------------------------------------- #
+def test_synthesize_couette_bc_fault_is_a_false_success():
+    from ofab.demo.couette_case import synthesize_couette_run
+
+    r = synthesize_couette_run(Fault.BC_MISMATCH, repaired=False)
+    assert r.case_id == config.COUETTE_CASE_ID
+    assert r.fault == Fault.BC_MISMATCH
+    assert r.qoi_error == pytest.approx(config.COUETTE_BC_SLIP, abs=1e-3)  # ~18%
+    assert r.engineering_status.value == "needs_repair"
+
+
+def test_synthesize_couette_repaired_passes():
+    from ofab.demo.couette_case import synthesize_couette_run
+
+    r = synthesize_couette_run(Fault.BC_MISMATCH, repaired=True)
+    assert r.qoi_error == pytest.approx(config.COUETTE_REPAIR_SLIP, abs=1e-3)  # ~2%
+    assert r.engineering_status.value == "pass"
+
+
+def test_synthesize_couette_clean_reproduces_line():
+    from ofab.demo.couette_case import synthesize_couette_run
+
+    r = synthesize_couette_run(Fault.NONE, repaired=False)
+    assert r.qoi_error == pytest.approx(0.0, abs=1e-6)
+    assert r.engineering_status.value == "pass"

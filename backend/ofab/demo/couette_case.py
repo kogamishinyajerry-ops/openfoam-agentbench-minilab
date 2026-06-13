@@ -38,7 +38,10 @@ def _profile_dict(label: str, u: np.ndarray, ref: np.ndarray) -> dict:
     }
 
 
-def _couette_run(run_id: str, u: np.ndarray, *, repaired: bool, ref: np.ndarray) -> RunResult:
+def _couette_run(
+    run_id: str, u: np.ndarray, *, repaired: bool, ref: np.ndarray,
+    fault: Fault = Fault.BC_MISMATCH,
+) -> RunResult:
     """Package a Couette profile into a standard RunResult so the case-agnostic
     benchmark layer can judge it exactly as it judges the hero case."""
     u = np.asarray(u, dtype=float)
@@ -56,7 +59,7 @@ def _couette_run(run_id: str, u: np.ndarray, *, repaired: bool, ref: np.ndarray)
         run_id=run_id,
         workflow=Workflow.AGENT_PLUS_BENCHMARK,
         case_id=config.COUETTE_CASE_ID,
-        fault=Fault.BC_MISMATCH,
+        fault=fault,
         mode=RunMode.REPLAY,
         round_index=1 if repaired else 0,
         execution_status=ExecutionStatus.SUCCESS,
@@ -73,6 +76,26 @@ def _couette_run(run_id: str, u: np.ndarray, *, repaired: bool, ref: np.ndarray)
             else "injected stationary-wall slip — benchmark flags false success"
         ),
     )
+
+
+def synthesize_couette_run(
+    fault: Fault, repaired: bool = False, run_id: str | None = None
+) -> RunResult:
+    """Deterministic synthetic Couette run for the CLI's mock/replay path (the
+    Couette analog of mock_runner.run_synthetic). The BC fault is modelled exactly
+    (stationary-wall slip); NONE/COARSE reproduce the linear solution (coarse mesh
+    does not manifest in a linear flow); other faults fall back to the clean line —
+    use ``--mode openfoam`` for a real, fully-modelled Couette solve."""
+    yn = pc.normalized_y()
+    ref = pc.analytical_profile(yn)
+    if repaired:
+        u = pc.repaired_profile(yn)
+    elif fault == Fault.BC_MISMATCH:
+        u = pc.failed_profile(yn)
+    else:
+        u = ref
+    rid = run_id or f"couette_{fault.value}_{'fix' if repaired else 'raw'}"
+    return _couette_run(rid, u, repaired=repaired, ref=ref, fault=fault)
 
 
 def build_second_case() -> dict:

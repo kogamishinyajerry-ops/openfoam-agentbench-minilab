@@ -185,13 +185,35 @@ def demo_couette_evidence():
 
 @app.command()
 def run(
-    case: str = typer.Option("channel_poiseuille", help="hero case id"),
+    case: str = typer.Option("channel_poiseuille",
+                             help="case id: channel_poiseuille (hero) | couette_shear"),
     fault: Fault = typer.Option(Fault.BC_MISMATCH, help="injected fault"),
     mode: RunMode = typer.Option(RunMode.REPLAY, help="replay | mock | openfoam"),
     repaired: bool = typer.Option(False, help="run the repaired (fixed) case"),
     workflow: Workflow = typer.Option(Workflow.AGENT_PLUS_BENCHMARK),
 ):
     """Generate (or replay) one OpenFOAM run and save it to runs/latest.json."""
+    if case.lower() in {"couette", "couette_shear", "shear"}:
+        # Second case (Couette): real solver for openfoam mode, deterministic
+        # synthetic otherwise. The benchmark layer downstream is unchanged.
+        from .demo.couette_case import synthesize_couette_run
+        if mode == RunMode.OPENFOAM:
+            from .runner import openfoam_couette
+            from .runner.openfoam_runner import OpenFOAMUnavailable
+            try:
+                console.print("[cyan]running real OpenFOAM (Couette)…[/cyan]")
+                run_result = openfoam_couette.run(
+                    workflow, fault, repaired=repaired,
+                    has_benchmark=(workflow == Workflow.AGENT_PLUS_BENCHMARK))
+            except OpenFOAMUnavailable as exc:
+                console.print(f"[yellow]OpenFOAM unavailable ({exc}); synthetic Couette.[/yellow]")
+                run_result = synthesize_couette_run(fault, repaired)
+        else:
+            run_result = synthesize_couette_run(fault, repaired)
+        _save_run(run_result)
+        _print_run(run_result)
+        return
+
     if mode == RunMode.OPENFOAM:
         from .runner import openfoam_runner
         try:
