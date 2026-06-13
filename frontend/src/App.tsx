@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { FlaskConical, Github, Waves, Gauge, Ruler } from "lucide-react";
 import { bundle } from "./lib/data";
 import Primer from "./components/Primer";
@@ -10,6 +11,7 @@ import ExperienceMemory from "./components/ExperienceMemory";
 import FlywheelRecall from "./components/FlywheelRecall";
 import RealEvidence from "./components/RealEvidence";
 import SectionNav, { type NavSection } from "./components/SectionNav";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const SECTIONS: NavSection[] = [
   { id: "primer", label: "看懂项目" },
@@ -61,15 +63,15 @@ export default function App() {
       </header>
 
       <main className="space-y-6">
-        <div id="primer" className="scroll-mt-6"><Primer /></div>
-        <div id="loop" className="scroll-mt-6"><FlowAnimation /></div>
-        <div id="profile" className="scroll-mt-6"><VelocityProfileChart /></div>
-        <div id="metrics" className="scroll-mt-6"><MetricCards /></div>
-        <div id="experiment" className="scroll-mt-6"><ExperimentTimeline /></div>
-        <div id="diagnosis" className="scroll-mt-6"><DiagnosisPanel /></div>
-        <div id="memory" className="scroll-mt-6"><ExperienceMemory /></div>
-        <div id="recall" className="scroll-mt-6"><FlywheelRecall /></div>
-        <div id="evidence" className="scroll-mt-6"><RealEvidence /></div>
+        <Section id="primer" label="看懂项目"><Primer /></Section>
+        <Section id="loop" label="反馈飞轮"><FlowAnimation /></Section>
+        <Section id="profile" label="速度剖面"><VelocityProfileChart /></Section>
+        <Section id="metrics" label="前后对比"><MetricCards /></Section>
+        <Section id="experiment" label="对照实验"><ExperimentTimeline /></Section>
+        <Section id="diagnosis" label="智能审计"><DiagnosisPanel /></Section>
+        <Section id="memory" label="错题本"><ExperienceMemory /></Section>
+        <Section id="recall" label="复发复用"><FlywheelRecall /></Section>
+        <Section id="evidence" label="真实验证"><RealEvidence /></Section>
       </main>
 
       <SectionNav sections={SECTIONS} />
@@ -82,6 +84,23 @@ export default function App() {
           <Github size={14} /> openfoam-agentbench-minilab
         </span>
       </footer>
+    </div>
+  );
+}
+
+// 每个区块 = 锚点容器（供右侧章节导航定位）+ 错误边界（单区块抛错只降级自己）。
+function Section({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div id={id} className="scroll-mt-6">
+      <ErrorBoundary label={label}>{children}</ErrorBoundary>
     </div>
   );
 }
