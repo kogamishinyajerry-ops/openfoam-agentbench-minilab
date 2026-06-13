@@ -34,7 +34,7 @@ from typer.testing import CliRunner
 
 from ofab.api import app as fastapi_app
 from ofab.cli import app as cli_app
-from ofab import paths
+from ofab import config, paths
 from ofab.runner.replay_runner import BundleNotFound, load_bundle
 
 
@@ -113,6 +113,76 @@ def test_cli_run_repaired_passes(runner: CliRunner):
     assert run["qoi_error"] == pytest.approx(0.021, abs=0.01)
     assert run["qoi_error"] < 0.05
     assert run["engineering_status"] == "pass"
+
+
+# --------------------------------------------------------------------------- #
+# CLI — second case: the --case flag must actually switch flows                #
+# (regression lock for the fixed bug where --case was ignored -> always hero)  #
+# --------------------------------------------------------------------------- #
+def test_cli_run_couette_case_switches_flow_and_is_false_success(runner: CliRunner):
+    """`ofab run --case couette_shear --mode mock` must run the SECOND flow, not
+    the hero. The persisted run's case_id has to be couette_shear (this is the
+    regression lock: before the fix, --case was ignored and it always ran
+    Poiseuille). The Couette bc fault is a false success: ran fine, engineering
+    needs repair, wall slip above tolerance, L2 ≈ the injected slip (~18%)."""
+    result = runner.invoke(
+        cli_app, ["run", "--case", "couette_shear", "--mode", "mock"]
+    )
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+
+    assert run["case_id"] == config.COUETTE_CASE_ID    # the flag actually switched flows
+    assert run["case_id"] != config.CASE_ID            # ... and is NOT the hero case
+    assert run["fault"] == "bc_mismatch"               # default injected fault
+    # ran fine yet engineering-wrong — the false success on a different flow.
+    assert run["execution_status"] == "success"
+    assert run["engineering_status"] == "needs_repair"
+    assert run["qoi_error"] == pytest.approx(config.COUETTE_BC_SLIP, abs=1e-2)  # ~0.18
+    assert run["qoi_error"] > config.QOI_L2_TOL
+    assert run["features"]["wall_slip"] > config.WALL_SLIP_TOL
+
+
+def test_cli_run_default_case_is_the_hero(runner: CliRunner):
+    """The contrast that proves --case selects: with no --case, the run is the
+    hero channel_poiseuille (so the couette assertion above isn't vacuously true
+    for every invocation)."""
+    result = runner.invoke(cli_app, ["run", "--fault", "bc_mismatch", "--mode", "mock"])
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+    assert run["case_id"] == config.CASE_ID            # channel_poiseuille
+
+
+def test_cli_run_couette_repaired_passes(runner: CliRunner):
+    """The repaired Couette case crosses the pass line (L2 ≈ 2% < 5%) — the same
+    acceptance band as the hero, judged by the same unchanged benchmark."""
+    result = runner.invoke(
+        cli_app,
+        ["run", "--case", "couette_shear", "--mode", "mock", "--repaired"],
+    )
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+    assert run["case_id"] == config.COUETTE_CASE_ID
+    assert run["qoi_error"] == pytest.approx(config.COUETTE_REPAIR_SLIP, abs=1e-2)  # ~0.02
+    assert run["qoi_error"] < config.QOI_L2_TOL
+    assert run["engineering_status"] == "pass"
+
+
+def test_cli_benchmark_couette_flags_false_success(runner: CliRunner):
+    """The generalisation claim through the actual CLI: `ofab run --case
+    couette_shear` then `ofab benchmark runs/latest` runs the SAME unchanged
+    scoring chain on the second flow and flags its false success — proof the
+    benchmark is case-agnostic end-to-end, not just inside the pre-built bundle."""
+    r1 = runner.invoke(
+        cli_app, ["run", "--case", "couette_shear", "--mode", "mock"]
+    )
+    assert r1.exit_code == 0, r1.output
+    r2 = runner.invoke(cli_app, ["benchmark", "runs/latest"])
+    assert r2.exit_code == 0, r2.output
+    assert "FALSE SUCCESS" in r2.output
+
+    sc = json.loads((paths.RUNS_DIR / "scorecard.json").read_text())
+    assert sc["false_success"] is True
+    assert sc["overall_pass"] is False
 
 
 def test_cli_benchmark_chain_flags_false_success(runner: CliRunner):
