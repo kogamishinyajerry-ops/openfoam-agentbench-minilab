@@ -21,7 +21,7 @@ seed:  ## 生成回放数据包 + 前端数据
 experiment:  ## 跑试点实验 -> 全部 JSON 产物 + report.md
 	$(OFAB) experiment experiments/pilot_001/protocol.yaml
 
-test:  ## 跑全部测试(后端 260 个 pytest + 前端 30 个 vitest)
+test:  ## 跑全部测试(后端 263 个 pytest + 前端 30 个 vitest)
 	$(PY) -m pytest backend
 	cd frontend && npm test
 

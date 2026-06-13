@@ -1,7 +1,7 @@
 name: CI
 
 # 这个项目的主张就是「自动化检验能抓住回归」——CI 把它落到仓库层面:
-# 每次 push / PR 都跑后端 260 个测试 + 前端 30 个测试 + 前端构建,
+# 每次 push / PR 都跑后端 263 个测试 + 前端 30 个测试 + 前端构建,
 # 头条数字一旦漂了（前端绑定或后端物理）就红。
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
       - name: 安装后端(含测试依赖)
         run: pip install -e "backend[test]"
-      - name: 跑 pytest(约 260 个用例,含头条数字回归锁)
+      - name: 跑 pytest(约 263 个用例,含头条数字回归锁)
         run: python -m pytest backend
 
   frontend:
