@@ -30,8 +30,14 @@ export default function SectionNav({ sections }: { sections: NavSection[] }) {
     return () => obs.disconnect();
   }, [sections]);
 
-  const jump = (id: string) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const jump = (id: string) => {
+    // Honour the user's reduced-motion preference — jump instantly instead of
+    // smooth-scrolling when they've asked the OS to minimise motion.
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  };
 
   return (
     <nav
