@@ -1,0 +1,41 @@
+# 基准检验契约 —— 二维平板剪切流（第二个案例 Couette）。
+# 这是该案例「工程上算对，到底意味着什么」的唯一标准，也是可被人直接打开核对的「标准答案」。
+#
+# 说明：与主线案例不同，Couette 的契约在代码里由 backend 的 config.py 共享给出
+# （build_scorecard / diagnose 默认用 BenchmarkContract.from_config()，容差三件套
+#  QOI_L2_TOL / RESIDUAL_TOL / WALL_SLIP_TOL 两案例完全共用——这正是「判卷老师一行不改、
+#  照样判另一种流动」的体现）。因此本文件是**说明性文档**：把第二个案例的标准答案与合格线
+# 摊开给人看，数值与 config.py 一致；test_contracts_parity.py 会锁住二者不漂。
+case_id: couette_shear
+title: 平板剪切流（Couette：上盖板拖动的水流）
+
+physics:
+  channel_height_m: 0.01         # H，上下两板之间的间距
+  lid_velocity_ms: 0.10          # U_lid，上盖板拖动速度（下板固定不动）
+  kinematic_viscosity_m2s: 5.0e-5   # 与主线案例同一种流体
+  reynolds_h: 20                 # 层流
+  u_max_ms: 0.10                 # 线性剖面在移动盖板处取到峰值 = U_lid
+  analytical: "u(y) = U_lid * (y / H)"   # 解析解（标准答案）：一条直线
+  # 下壁固定 no-slip（u=0），上盖板被拖着走（u=U_lid）；稳态精确解是线性剪切。
+
+qoi:
+  name: velocity_profile_l2_error
+  description: 垂直板面方向的速度剖面相对解析解（直线）的相对 L2 误差（关键物理量 QoI）
+  n_points: 41
+
+reference:
+  path: ../references/couette_shear_reference.csv
+
+tolerances:                      # 与主线案例共用同一套合格线（case-agnostic 判卷）
+  qoi_l2: 0.05                   # 工程合格要求：L2 误差 < 5%
+  residual: 1.0e-4               # 求解器最终残差必须低于此值
+  wall_slip: 0.05                # |u_静止壁|/U_lid 超过此值 => no-slip 被破坏
+
+checks:
+  - execution     # 进程退出码为 0       （普通测试只看得到这一层）
+  - residual      # 残差收敛到容差以下    （数值层面的及格线）
+  - qoi_l2        # 剖面贴合解析解        （工程层面的真相）
+
+# 注入故障（case-2 hero）：静止壁滑移 slip 0.18 -> L2 恰 18%（假成功）；修复 0.02 -> 2%（合格）。
+# wall_slip 特征只查**静止下壁**——移动盖板本就该动，不算滑移。
+# 老实标注：coarse_mesh 对线性解不适用（任意网格都精确还原，L2≈0），故本案例不注入该故障。
