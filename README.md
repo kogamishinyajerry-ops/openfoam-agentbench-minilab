@@ -121,16 +121,16 @@ python3 -m venv .venv
 
 ### 运行测试(后端 pytest + 前端 vitest)
 
-后端带一套 225 个用例的测试,把这套闭环的每一个不变量都锁住了:解析解的正确性、
+后端带一套 234 个用例的测试,把这套闭环的每一个不变量都锁住了:解析解的正确性、
 「假成功」检测、失效模式诊断的门优先级、奖励公式、两个算例的全部头条数字(防止任何改动
 悄悄让 Demo 的数据失真)——相当于把这个项目「检验能抓住错误」的主张,反过来用在它自己身上。
 前端另有 22 个 vitest 用例,锁住看板的「数字绑定」(屏幕上的数字确实来自数据包而非写死,
 覆盖前后对比卡 / 智能审计诊断 / 经验飞轮 / 举一反三四组头条数字)、错误边界(单区块抛错不白屏)与工具函数。
 
 ```bash
-# 后端(225 个用例)
+# 后端(234 个用例)
 ./.venv/bin/pip install -e "backend[test]"   # 装上 pytest + httpx
-./.venv/bin/python -m pytest backend          # 225 个用例,全绿
+./.venv/bin/python -m pytest backend          # 234 个用例,全绿
 
 # 前端(22 个用例)
 cd frontend && npm install && npm test        # vitest,全绿
@@ -206,6 +206,13 @@ docs/                  # 演示分镜脚本(3–4 分钟视频)
 区块直接展示。诚实地标注了**「网格太粗」对 Couette 不适用**(线性剖面在任意网格上都精确还原)——
 框架按算例匹配故障,不硬套。详见 [`backend/ofab/physics_couette.py`](backend/ofab/physics_couette.py)
 与 [`backend/ofab/demo/couette_case.py`](backend/ofab/demo/couette_case.py)。
+
+**而且它也在真实 OpenFOAM 上验证过**(不止解析/合成):同一套基准检验跑在一次真实的
+`icoFoam` 剪切流求解上——正确算例 L2 **0.00%**(精确复现解析直线)、`bc_mismatch` **18.0%** →
+被抓成假成功并诊断 `BC_MISMATCH`(73%)、`solver_setting_error` **74.9%** → `RESIDUAL_NOT_CONVERGED`
+(95%);连「网格太粗」一项也用真实粗网格运行(L2 **≈0.01%** 照样合格)**实证了它对剪切流确实不适用**。
+复现命令:`ofab demo couette-evidence`(需要一个在跑的 OpenFOAM 容器);数据见
+[`data/real_evidence_couette.json`](data/real_evidence_couette.json),看板「举一反三」区块底部也有展示。
 
 ## 刻意不做的部分
 
