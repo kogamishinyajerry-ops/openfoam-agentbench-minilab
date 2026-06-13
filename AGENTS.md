@@ -73,7 +73,7 @@ runner (mock | replay | openfoam)  →  RunResult
 
 ## 审查纪律（Review discipline）
 
-涉及安全 / 契约敏感的改动（run / benchmark / diagnosis 这条路径、真实 OpenFOAM 运行器、任何 JSON schema）值得请第二双眼睛看。宣称「做完」之前，跑 `./.venv/bin/python -m pytest backend`（241 个用例，锁住两个案例的物理不变量 / 假成功检测 / 诊断门 / 奖励公式 / 全部头条数字 / 泛化主张），把整条 CLI 链（`run → benchmark → diagnose → reward`）重跑一遍，并跑前端 `npm test`（22 个）+ `npm run build`，或一键 `make verify`。「做完」的意思是这条闭环能**复现**，而不是「我觉得它能跑」。
+涉及安全 / 契约敏感的改动（run / benchmark / diagnosis 这条路径、真实 OpenFOAM 运行器、任何 JSON schema）值得请第二双眼睛看。宣称「做完」之前，跑 `./.venv/bin/python -m pytest backend`（260 个用例，锁住两个案例的物理不变量 / 假成功检测 / 诊断门 / 奖励公式 / 全部头条数字 / 泛化主张 / 两份契约与参考表 / 两案例真实证据），把整条 CLI 链（`run → benchmark → diagnose → reward`）重跑一遍，并跑前端 `npm test`（30 个）+ `npm run build`，或一键 `make verify`。「做完」的意思是这条闭环能**复现**，而不是「我觉得它能跑」。
 
 > 改了 `physics.py` / `config.py` 里任何会影响数字的东西后：先 `ofab demo seed` 重新生成回放包，再 `pytest backend`——`test_replay_bundle.py` 是头条数字的回归锁，会立刻告诉你哪个数字漂了、以及前端 `demoRuns.json` 是否还和后端同步。
 
