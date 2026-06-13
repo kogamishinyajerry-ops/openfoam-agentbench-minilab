@@ -31,7 +31,7 @@
 
 1. **AI 智能体能自动生成 / 修改一个 OpenFOAM 算例**(主线案例是一个有精确解析解的二维平板通道层流)。
 2. **基准检验能抓住「跑得好好的、工程上却是错的」假成功**——只看退出码的自动化会把它们悄悄放过去。
-3. **基准检验的反馈能驱动自动修复 + 形成数据飞轮**——每一次失败都被诊断、修复、验证,并存成一条可复用的经验。
+3. **基准检验的反馈能驱动自动修复 + 形成数据飞轮**——每一次失败都被诊断、修复、验证,并存成一条可复用的经验;**同一故障复发时,直接召回这条经验、套用已知修复,修得更快**(少一轮重跑、耗时省 33%)。
 
 ## 反馈飞轮
 
@@ -113,6 +113,7 @@ python3 -m venv .venv
 ./.venv/bin/ofab benchmark runs/latest     # 评分卡 + 假成功标记
 ./.venv/bin/ofab diagnose  runs/latest      # 失效模式 + 修复建议
 ./.venv/bin/ofab reward    runs/latest      # 驱动修复的「燃料」
+./.venv/bin/ofab recall    --fault bc_mismatch   # 复发时:召回错题本里的已知修复
 
 # 启动看板要读的 API(ofab 已 pip 安装,从仓库根目录运行)
 ./.venv/bin/uvicorn ofab.api:app --reload --port 8000
