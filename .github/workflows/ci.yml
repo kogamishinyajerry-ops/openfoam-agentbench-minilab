@@ -1,0 +1,38 @@
+name: CI
+
+# 这个项目的主张就是「自动化检验能抓住回归」——CI 把它落到仓库层面:
+# 每次 push / PR 都跑后端 201 个测试 + 前端构建,头条数字一旦漂了就红。
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: 后端测试 (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装后端(含测试依赖)
+        run: pip install -e "backend[test]"
+      - name: 跑 pytest(约 200 个用例,含头条数字回归锁)
+        run: python -m pytest backend
+
+  frontend:
+    name: 前端构建 (vite build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装前端依赖
+        run: npm ci
+        working-directory: frontend
+      - name: 生产构建
+        run: npm run build
+        working-directory: frontend
