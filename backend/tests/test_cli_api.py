@@ -1,0 +1,360 @@
+"""Tests for the ofab CLI (typer) and FastAPI surface.
+
+These tests assert *real invariants* of the benchmark-feedback loop, not
+just "the process exits 0":
+
+  - `ofab run --fault bc_mismatch --mode mock` must produce a run that ran
+    fine (execution success) yet is engineering-wrong (needs_repair) — i.e.
+    the project's whole thesis: a benchmark catches a FALSE SUCCESS.
+  - The `ofab benchmark` chain must flag that false success.
+  - The FastAPI bundle/summary routes must return the seeded head-to-head
+    numbers (before=0, after=3 false successes; before=5/after=2 reruns; …).
+  - A missing route is 404; POST /api/demo/run with a legal body runs the
+    benchmark layer in-process.
+
+CLI is exercised both via subprocess (the installed `ofab` console script,
+real exit codes) and via typer's CliRunner (in-process, fast). The API is
+exercised purely with fastapi.testclient.TestClient — no uvicorn, no port.
+
+The CLI `run`/`benchmark` commands write to ``runs/`` (the package's transient
+per-run output dir, derived from __file__), NOT to the protected ``data/``
+real-data files. We never write under ``data/``.
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from typer.testing import CliRunner
+
+from ofab.api import app as fastapi_app
+from ofab.cli import app as cli_app
+from ofab import paths
+from ofab.runner.replay_runner import BundleNotFound, load_bundle
+
+
+# --------------------------------------------------------------------------- #
+# Fixtures / module-level guards                                              #
+# --------------------------------------------------------------------------- #
+ROOT = paths.REPO_ROOT
+VENV_OFAB = ROOT / ".venv" / "bin" / "ofab"
+
+
+def _bundle_available() -> bool:
+    try:
+        load_bundle()
+        return True
+    except BundleNotFound:
+        return False
+
+
+bundle_required = pytest.mark.skipif(
+    not _bundle_available(),
+    reason="demo bundle not seeded (run `ofab demo seed`); API GET routes need it",
+)
+
+
+@pytest.fixture(scope="module")
+def client() -> TestClient:
+    return TestClient(fastapi_app)
+
+
+@pytest.fixture(scope="module")
+def runner() -> CliRunner:
+    return CliRunner()
+
+
+# --------------------------------------------------------------------------- #
+# CLI — in-process via typer CliRunner                                        #
+# --------------------------------------------------------------------------- #
+def test_cli_run_bc_mismatch_mock_is_false_success(runner: CliRunner):
+    """`ofab run --fault bc_mismatch --mode mock` exits 0 and the run is a
+    FALSE SUCCESS: execution succeeded but engineering needs repair.
+
+    Asserts the run actually got persisted to runs/latest.json with the fixed
+    bc_mismatch invariants (wall_slip≈0.283, qoi≈0.184), so the command did
+    real work — not a vacuous exit-0."""
+    result = runner.invoke(
+        cli_app, ["run", "--fault", "bc_mismatch", "--mode", "mock"]
+    )
+    assert result.exit_code == 0, result.output
+
+    latest = paths.RUNS_DIR / "latest.json"
+    assert latest.exists()
+    run = json.loads(latest.read_text())
+
+    assert run["fault"] == "bc_mismatch"
+    assert run["mode"] == "mock"
+    # ran fine ...
+    assert run["execution_status"] == "success"
+    # ... yet engineering-wrong: the false success the benchmark must catch.
+    assert run["engineering_status"] == "needs_repair"
+    # fixed physics constants for bc_mismatch (slip=0.283, L2≈0.184).
+    assert run["features"]["wall_slip"] == pytest.approx(0.283, abs=1e-6)
+    assert run["qoi_error"] == pytest.approx(0.184, abs=0.01)
+    assert run["qoi_error"] > 0.05  # above the QOI_L2_TOL, so it fails
+
+
+def test_cli_run_repaired_passes(runner: CliRunner):
+    """The repaired bc_mismatch case must cross the pass line (L2≈0.021 < 0.05)
+    and report engineering pass."""
+    result = runner.invoke(
+        cli_app,
+        ["run", "--fault", "bc_mismatch", "--mode", "mock", "--repaired"],
+    )
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+    assert run["execution_status"] == "success"
+    assert run["qoi_error"] == pytest.approx(0.021, abs=0.01)
+    assert run["qoi_error"] < 0.05
+    assert run["engineering_status"] == "pass"
+
+
+def test_cli_benchmark_chain_flags_false_success(runner: CliRunner):
+    """`ofab run` (bc_mismatch/mock) then `ofab benchmark runs/latest` runs the
+    scoring chain end to end and prints the FALSE SUCCESS verdict."""
+    r1 = runner.invoke(
+        cli_app, ["run", "--fault", "bc_mismatch", "--mode", "mock"]
+    )
+    assert r1.exit_code == 0, r1.output
+
+    r2 = runner.invoke(cli_app, ["benchmark", "runs/latest"])
+    assert r2.exit_code == 0, r2.output
+    assert "FALSE SUCCESS" in r2.output
+
+    # the scorecard artifact must agree with the printed verdict.
+    sc = json.loads((paths.RUNS_DIR / "scorecard.json").read_text())
+    assert sc["false_success"] is True
+    assert sc["overall_pass"] is False
+
+
+def test_cli_benchmark_repaired_no_false_success(runner: CliRunner):
+    """After repair the scorecard must show overall_pass and NOT a false
+    success — the benchmark verdict tracks the engineering reality."""
+    runner.invoke(
+        cli_app,
+        ["run", "--fault", "bc_mismatch", "--mode", "mock", "--repaired"],
+    )
+    r = runner.invoke(cli_app, ["benchmark", "runs/latest"])
+    assert r.exit_code == 0, r.output
+    assert "FALSE SUCCESS" not in r.output
+    sc = json.loads((paths.RUNS_DIR / "scorecard.json").read_text())
+    assert sc["false_success"] is False
+    assert sc["overall_pass"] is True
+
+
+def test_cli_no_args_shows_help(runner: CliRunner):
+    """Bare `ofab` is configured no_args_is_help; it must not crash."""
+    result = runner.invoke(cli_app, [])
+    # typer/click exits 0 (or 2) on help, never a traceback.
+    assert result.exit_code in (0, 2)
+    assert "Usage" in result.output or "benchmark" in result.output
+
+
+# --------------------------------------------------------------------------- #
+# CLI — subprocess via the installed `ofab` console script (real exit codes)  #
+# --------------------------------------------------------------------------- #
+@pytest.mark.skipif(
+    not VENV_OFAB.exists(), reason="venv `ofab` console script not installed"
+)
+def test_cli_subprocess_run_exit_zero():
+    """The installed console script `ofab run --fault bc_mismatch --mode mock`
+    exits 0 and prints the RunResult panel for a real (sub)process — proves the
+    entry point is wired, not just the in-process app object."""
+    proc = subprocess.run(
+        [str(VENV_OFAB), "run", "--fault", "bc_mismatch", "--mode", "mock"],
+        capture_output=True,
+        text=True,
+        cwd=str(paths.BACKEND_DIR),
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    out = proc.stdout
+    assert "RunResult" in out
+    assert "bc_mismatch" in out
+
+
+# --------------------------------------------------------------------------- #
+# API — health (works whether or not seeded)                                  #
+# --------------------------------------------------------------------------- #
+def test_api_health_ok(client: TestClient):
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["seeded"] is _bundle_available()
+
+
+# --------------------------------------------------------------------------- #
+# API — GET bundle / summary / metrics (the seeded head-to-head numbers)      #
+# --------------------------------------------------------------------------- #
+@bundle_required
+def test_api_bundle_200_contains_comparison(client: TestClient):
+    """GET /api/demo/bundle -> 200 and JSON contains the comparison block with
+    the fixed head-to-head numbers."""
+    r = client.get("/api/demo/bundle")
+    assert r.status_code == 200
+    b = r.json()
+    assert "comparison" in b
+    cmp = b["comparison"]
+    # before/after false successes: agent-only catches 0, agent+benchmark 3.
+    assert cmp["false_success_detected"]["before"] == 0
+    assert cmp["false_success_detected"]["after"] == 3
+    assert cmp["experience_records"]["before"] == 0
+    assert cmp["experience_records"]["after"] == 3
+    # reruns 5 -> 2.
+    assert cmp["rerun_count"]["before"] == 5
+    assert cmp["rerun_count"]["after"] == 2
+    # final QoI error 8.7% -> 2.1%.
+    assert cmp["qoi_error"]["before"] == pytest.approx(0.0872, abs=1e-4)
+    assert cmp["qoi_error"]["after"] == pytest.approx(0.02115, abs=1e-4)
+
+
+@bundle_required
+def test_api_summary_200_contains_comparison(client: TestClient):
+    """GET /api/demo/summary -> 200 and exposes the same comparison block."""
+    r = client.get("/api/demo/summary")
+    assert r.status_code == 200
+    b = r.json()
+    assert "comparison" in b
+    assert b["comparison"]["rerun_count"]["before"] == 5
+    assert b["comparison"]["rerun_count"]["after"] == 2
+
+
+@bundle_required
+def test_api_metrics_time_to_pass(client: TestClient):
+    """GET /api/demo/metrics -> 200; time_to_pass before 747.4s / after 249.8s."""
+    r = client.get("/api/demo/metrics")
+    assert r.status_code == 200
+    cmp = r.json()["comparison"]
+    assert cmp["time_to_pass"]["before"] == pytest.approx(747.4, abs=0.1)
+    assert cmp["time_to_pass"]["after"] == pytest.approx(249.8, abs=0.1)
+    assert cmp["time_to_pass"]["before_label"] == "12m 27s"
+    assert cmp["time_to_pass"]["after_label"] == "4m 10s"
+
+
+@bundle_required
+def test_api_profile_route(client: TestClient):
+    """GET /api/demo/profile -> 200; failed≈18.4%, repaired≈2.1%, agent_only≈8.7%."""
+    r = client.get("/api/demo/profile")
+    assert r.status_code == 200
+    profiles = r.json()["profiles"]
+    assert profiles["failed"]["qoi_error"] == pytest.approx(0.1842, abs=2e-3)
+    assert profiles["repaired"]["qoi_error"] == pytest.approx(0.0211, abs=2e-3)
+    assert profiles["agent_only_final"]["qoi_error"] == pytest.approx(
+        0.0872, abs=2e-3
+    )
+
+
+# --------------------------------------------------------------------------- #
+# API — error handling                                                        #
+# --------------------------------------------------------------------------- #
+def test_api_unknown_route_404(client: TestClient):
+    r = client.get("/api/demo/does-not-exist")
+    assert r.status_code == 404
+
+
+def test_api_get_on_post_only_run_is_405(client: TestClient):
+    """/api/demo/run is POST-only; a GET must be 405, not 200/404."""
+    r = client.get("/api/demo/run")
+    assert r.status_code == 405
+
+
+# --------------------------------------------------------------------------- #
+# API — POST /api/demo/run (legal body, in-process benchmark layer)           #
+# --------------------------------------------------------------------------- #
+def test_api_post_run_bc_mismatch_mock(client: TestClient):
+    """POST /api/demo/run with a legal body (bc_mismatch / mock /
+    agent_plus_benchmark) -> 200, and because a benchmark is attached the
+    response includes run + scorecard + diagnosis + reward, with the scorecard
+    flagging the false success."""
+    r = client.post(
+        "/api/demo/run",
+        json={
+            "fault": "bc_mismatch",
+            "mode": "mock",
+            "repaired": False,
+            "workflow": "agent_plus_benchmark",
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert {"run", "scorecard", "diagnosis", "reward"} <= set(body)
+
+    run = body["run"]
+    assert run["fault"] == "bc_mismatch"
+    assert run["execution_status"] == "success"
+    assert run["engineering_status"] == "needs_repair"
+    assert run["qoi_error"] == pytest.approx(0.184, abs=0.01)
+
+    sc = body["scorecard"]
+    assert sc["false_success"] is True
+    assert sc["overall_pass"] is False
+
+    # bc_mismatch (residual ok, wall_slip≥tol) must diagnose BC_MISMATCH.
+    assert body["diagnosis"]["failure_mode"] == "BC_MISMATCH"
+    assert 0.0 < body["diagnosis"]["confidence"] <= 1.0
+    # not converged => repair, and engineering reward is the clip of qoi.
+    assert body["reward"]["decision"] == "repair_and_rerun"
+
+
+def test_api_post_run_repaired_passes(client: TestClient):
+    """POST a repaired bc_mismatch run -> overall_pass True, no false success,
+    decision accept."""
+    r = client.post(
+        "/api/demo/run",
+        json={
+            "fault": "bc_mismatch",
+            "mode": "mock",
+            "repaired": True,
+            "workflow": "agent_plus_benchmark",
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["run"]["engineering_status"] == "pass"
+    assert body["run"]["qoi_error"] < 0.05
+    assert body["scorecard"]["false_success"] is False
+    assert body["scorecard"]["overall_pass"] is True
+    assert body["reward"]["decision"] == "accept"
+
+
+def test_api_post_run_agent_only_has_no_benchmark(client: TestClient):
+    """agent_only workflow attaches no benchmark: the response carries only
+    `run` (no scorecard/diagnosis/reward) — that's exactly why agent-only can't
+    see the false success."""
+    r = client.post(
+        "/api/demo/run",
+        json={
+            "fault": "bc_mismatch",
+            "mode": "mock",
+            "workflow": "agent_only",
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "run" in body
+    assert "scorecard" not in body
+    assert "diagnosis" not in body
+    assert "reward" not in body
+
+
+def test_api_post_run_invalid_fault_422(client: TestClient):
+    """An illegal enum value must be a 422 validation error, not a 500."""
+    r = client.post("/api/demo/run", json={"fault": "not_a_fault"})
+    assert r.status_code == 422
+
+
+def test_api_post_run_defaults_with_empty_body(client: TestClient):
+    """RunRequest has all-default fields; an empty body is legal and defaults to
+    bc_mismatch / mock / agent_plus_benchmark."""
+    r = client.post("/api/demo/run", json={})
+    assert r.status_code == 200, r.text
+    run = r.json()["run"]
+    assert run["fault"] == "bc_mismatch"
+    assert run["mode"] == "mock"
