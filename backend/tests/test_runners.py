@@ -352,6 +352,7 @@ def test_generate_case_does_not_write_into_real_data_dir(tmp_path):
 # tolerances, never to "whatever was captured".
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HERO_EVIDENCE = REPO_ROOT / "data" / "real_evidence.json"
+HERO_EVIDENCE_FRONTEND = REPO_ROOT / "frontend" / "src" / "data" / "realEvidence.json"
 
 
 @pytest.fixture(scope="module")
@@ -409,3 +410,13 @@ def test_real_solver_fault_caught_by_residual_despite_passing_qoi(hero_evidence)
     assert s["qoi_error"] < config.QOI_L2_TOL                     # QoI alone would pass
     assert s["residual_final"] > config.RESIDUAL_TOL              # residual betrays it
     assert s["diagnosis"] == "RESIDUAL_NOT_CONVERGED"
+
+
+def test_hero_evidence_frontend_copy_is_byte_identical(hero_evidence):
+    """The dashboard reads frontend/src/data/realEvidence.json; it must equal the
+    backend-captured data/real_evidence.json (both written from one object by
+    `ofab demo real-evidence`). Locks the additive-safety mirror so the UI can't
+    show different 'real' numbers than were actually captured."""
+    assert HERO_EVIDENCE_FRONTEND.is_file(), f"missing {HERO_EVIDENCE_FRONTEND}"
+    frontend = json.loads(HERO_EVIDENCE_FRONTEND.read_text())
+    assert frontend == hero_evidence

@@ -18,6 +18,7 @@ from ofab.runner import openfoam_couette as ofc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COUETTE_EVIDENCE = REPO_ROOT / "data" / "real_evidence_couette.json"
+COUETTE_EVIDENCE_FRONTEND = REPO_ROOT / "frontend" / "src" / "data" / "realEvidenceCouette.json"
 
 
 def _gen(tmp_path, fault, repaired):
@@ -108,6 +109,16 @@ def test_real_coarse_mesh_confirms_not_applicable(evidence):
     cm = evidence["coarse_mesh_check"]
     assert cm["qoi_error"] < config.QOI_L2_TOL
     assert cm["overall_pass"] is True
+
+
+def test_couette_evidence_frontend_copy_is_byte_identical(evidence):
+    """The dashboard's Couette real-evidence strip reads
+    frontend/src/data/realEvidenceCouette.json; it must equal the backend
+    data/real_evidence_couette.json (both written from one object by
+    `ofab demo couette-evidence`). Same additive-safety mirror lock as the hero."""
+    assert COUETTE_EVIDENCE_FRONTEND.is_file(), f"missing {COUETTE_EVIDENCE_FRONTEND}"
+    frontend = json.loads(COUETTE_EVIDENCE_FRONTEND.read_text())
+    assert frontend == evidence
 
 
 # --------------------------------------------------------------------------- #
