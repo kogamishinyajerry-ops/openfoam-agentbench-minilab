@@ -37,6 +37,7 @@ def test_bundle_top_level_keys(bundle: dict) -> None:
     required = {
         "case", "profiles", "runs", "scorecards", "diagnoses", "rewards",
         "workflows", "timeline", "comparison", "experience", "story", "flywheel",
+        "second_case",
     }
     missing = required - set(bundle.keys())
     assert not missing, f"bundle missing keys: {sorted(missing)}"
@@ -221,6 +222,47 @@ def test_flywheel_recalled_matches_stored_experience(bundle: dict) -> None:
     assert fw["recalled"]["symptom"] == bc_exp["symptom"]
     assert fw["recalled"]["repair"] == bc_exp["repair"]
     assert fw["recalled"]["outcome"] == bc_exp["outcome"]
+
+
+# --------------------------------------------------------------------------- #
+# Second case (Couette) — the benchmark generalises                           #
+# --------------------------------------------------------------------------- #
+def test_second_case_identity(bundle: dict) -> None:
+    sc = bundle["second_case"]
+    assert sc["case"]["id"] == "couette_shear"
+    assert sc["case"]["reynolds"] == pytest.approx(20.0)
+    assert sc["case"]["u_max"] == pytest.approx(0.10)
+    # shares the hero case's benchmark tolerances (same judge, different flow)
+    assert sc["case"]["tolerances"]["qoi_l2"] == bundle["case"]["tolerances"]["qoi_l2"]
+
+
+def test_second_case_profiles_land_on_targets(bundle: dict) -> None:
+    p = bundle["second_case"]["profiles"]
+    assert p["reference"]["qoi_error"] == pytest.approx(0.0)
+    # injected stationary-wall slip -> 18% (false success), repaired -> 2% (passes)
+    assert p["failed"]["qoi_error"] == pytest.approx(0.18, abs=1e-3)
+    assert p["repaired"]["qoi_error"] == pytest.approx(0.02, abs=1e-3)
+    assert p["failed"]["qoi_error"] > 0.05 > p["repaired"]["qoi_error"]
+
+
+def test_second_case_same_benchmark_catches_false_success(bundle: dict) -> None:
+    """The crux: the unchanged scorecard flags the Couette run as a false success
+    and the unchanged diagnosis classifies it BC_MISMATCH from the wall slip."""
+    sc = bundle["second_case"]
+    assert sc["scorecard"]["false_success"] is True
+    assert sc["scorecard"]["overall_pass"] is False
+    assert sc["diagnosis"]["failure_mode"] == "BC_MISMATCH"
+    assert 0.0 < sc["diagnosis"]["confidence"] <= 1.0
+    assert sc["wall_slip_pct"] == pytest.approx(18.0, abs=0.5)
+    # and the repaired run passes the same benchmark
+    assert sc["repaired_pass"] is True
+
+
+def test_second_case_documents_inapplicable_fault(bundle: dict) -> None:
+    """Honest physics: coarse_mesh does not apply to a linear profile."""
+    na = bundle["second_case"]["not_applicable"]
+    assert na["fault"] == "coarse_mesh"
+    assert na["reason"]  # non-empty explanation
 
 
 # --------------------------------------------------------------------------- #

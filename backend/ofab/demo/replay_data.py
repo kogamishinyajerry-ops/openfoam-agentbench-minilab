@@ -14,6 +14,7 @@ from .. import config, physics
 from ..benchmark import build_scorecard, compute_reward, diagnose
 from ..benchmark import metrics as M
 from ..memory import mine_experience
+from .couette_case import build_second_case
 from ..models import (
     EngineeringStatus,
     ExperimentResult,
@@ -396,6 +397,10 @@ def build_bundle(mode: RunMode = RunMode.REPLAY) -> dict:
         "rewards": [r.model_dump(mode="json") for r in rewards],
         "experience": [e.model_dump(mode="json") for e in experience],
         "flywheel": flywheel,
+        # Second case — proves the benchmark generalises (additive; the same
+        # unchanged scorecard/diagnose judge a different flow). Does not affect
+        # any of the locked hero numbers above.
+        "second_case": build_second_case(),
         "scorecards": [s.model_dump(mode="json") for s in scorecards],
         "runs": [r.model_dump(mode="json") for r in experiment.runs],
     }
