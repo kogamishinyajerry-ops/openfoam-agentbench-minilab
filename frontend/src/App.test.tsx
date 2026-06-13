@@ -42,7 +42,7 @@ describe("App", () => {
     expect(h1?.textContent).toContain("会算对");
   });
 
-  it("九个区块锚点全部挂载（供右侧章节导航定位）", () => {
+  it("十个区块锚点全部挂载（供右侧章节导航定位）", () => {
     const { container } = render(<App />);
     const ids = [
       "primer",
@@ -53,6 +53,7 @@ describe("App", () => {
       "diagnosis",
       "memory",
       "recall",
+      "secondcase",
       "evidence",
     ];
     for (const id of ids) {

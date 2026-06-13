@@ -133,6 +133,54 @@ export interface CaseInfo {
   tolerances: { qoi_l2: number; residual: number; wall_slip: number };
 }
 
+export interface SecondCaseProfile {
+  label: string;
+  y: number[];
+  u: number[];
+  qoi_error: number;
+}
+
+export interface SecondCaseScorecardCheck {
+  name: string;
+  passed: boolean;
+  value: number;
+  threshold: number;
+  detail: string;
+}
+
+export interface SecondCaseScorecard {
+  checks: SecondCaseScorecardCheck[];
+  qoi_error: number;
+  residual_final: number;
+  false_success: boolean;
+  overall_pass: boolean;
+}
+
+export interface SecondCase {
+  case: {
+    id: string;
+    title: string;
+    lid_velocity: number;
+    height: number;
+    reynolds: number;
+    u_max: number;
+    kinematic_viscosity: number;
+    tolerances: { qoi_l2: number; residual: number; wall_slip: number };
+  };
+  profiles: {
+    reference: SecondCaseProfile;
+    failed: SecondCaseProfile;
+    repaired: SecondCaseProfile;
+  };
+  scorecard: SecondCaseScorecard;
+  diagnosis: Diagnosis;
+  repaired_pass: boolean;
+  wall_slip_pct: number;
+  shared_benchmark: boolean;
+  generalizes_note: string;
+  not_applicable: { fault: string; label: string; reason: string };
+}
+
 export interface Bundle {
   case: CaseInfo;
   story: { slogan: string; steps: string[] };
@@ -152,6 +200,7 @@ export interface Bundle {
   rewards: Reward[];
   experience: ExperienceRecord[];
   flywheel: Flywheel;
+  second_case: SecondCase;
   scorecards: unknown[];
   runs: RunResult[];
 }
