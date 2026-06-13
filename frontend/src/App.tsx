@@ -9,6 +9,19 @@ import DiagnosisPanel from "./components/DiagnosisPanel";
 import ExperienceMemory from "./components/ExperienceMemory";
 import FlywheelRecall from "./components/FlywheelRecall";
 import RealEvidence from "./components/RealEvidence";
+import SectionNav, { type NavSection } from "./components/SectionNav";
+
+const SECTIONS: NavSection[] = [
+  { id: "primer", label: "看懂项目" },
+  { id: "loop", label: "反馈飞轮" },
+  { id: "profile", label: "速度剖面" },
+  { id: "metrics", label: "前后对比" },
+  { id: "experiment", label: "对照实验" },
+  { id: "diagnosis", label: "智能审计" },
+  { id: "memory", label: "错题本" },
+  { id: "recall", label: "复发复用" },
+  { id: "evidence", label: "真实验证" },
+];
 
 const MODE_CN: Record<string, string> = {
   replay: "回放演示",
@@ -48,18 +61,18 @@ export default function App() {
       </header>
 
       <main className="space-y-6">
-        <Primer />
-        <FlowAnimation />
-        <VelocityProfileChart />
-        <MetricCards />
-        <div className="grid gap-6 lg:grid-cols-1">
-          <ExperimentTimeline />
-        </div>
-        <DiagnosisPanel />
-        <ExperienceMemory />
-        <FlywheelRecall />
-        <RealEvidence />
+        <div id="primer" className="scroll-mt-6"><Primer /></div>
+        <div id="loop" className="scroll-mt-6"><FlowAnimation /></div>
+        <div id="profile" className="scroll-mt-6"><VelocityProfileChart /></div>
+        <div id="metrics" className="scroll-mt-6"><MetricCards /></div>
+        <div id="experiment" className="scroll-mt-6"><ExperimentTimeline /></div>
+        <div id="diagnosis" className="scroll-mt-6"><DiagnosisPanel /></div>
+        <div id="memory" className="scroll-mt-6"><ExperienceMemory /></div>
+        <div id="recall" className="scroll-mt-6"><FlywheelRecall /></div>
+        <div id="evidence" className="scroll-mt-6"><RealEvidence /></div>
       </main>
+
+      <SectionNav sections={SECTIONS} />
 
       <footer className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-sm text-slate-500 sm:flex-row">
         <p>
