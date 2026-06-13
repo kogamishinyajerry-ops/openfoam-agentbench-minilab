@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# Generated run artifacts (regenerate with `ofab demo seed` / `ofab experiment`)
+runs/
+experiments/*/results/
+
+# Generated demo artifacts under data/: keep only the replay spine (demo_bundle)
+# and the non-regenerable real-OpenFOAM evidence; the rest is `ofab demo seed` output.
+data/*
+!data/demo_bundle.json
+!data/real_evidence.json
+
+# OS
+.DS_Store
