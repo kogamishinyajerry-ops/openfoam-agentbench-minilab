@@ -1,0 +1,31 @@
+# 故障注入：错误的壁面边界条件。
+# 本文件为说明性文档（不被代码读取），描述这种故障的「长相」与修复方式。
+id: bc_mismatch
+title: 边界条件错误（no-slip 被破坏）
+expected_failure_mode: BC_MISMATCH
+
+description: >
+  把通道壁面从 no-slip 改成了一个会动的壁面（平移壁面）。求解器照样能跑到结束
+  （退出码 0），但速度剖面在壁面处不再归零——整条剖面被「削平」、变得像柱塞流。
+
+injection:
+  field: 0/U
+  patch: walls
+  # 真实运行器把壁面 U 设成 fixedValue (0.05 0 0)（平移壁面）；正确应为 noSlip / (0 0 0)。
+  set:
+    type: fixedValue
+    value: "(0.05 0 0)"     # 应为 noSlip：(0 0 0)
+
+signature:
+  wall_slip: high         # |u_wall|/u_max 远超容差
+  peak_deficit: low
+  residual: converged
+
+benchmark_expectation:
+  execution_status: success
+  engineering_status: needs_repair
+  qoi_l2_error: ~0.18
+
+suggested_repair:
+  - 恢复壁面的 no-slip 边界条件（壁面 U = (0 0 0)）
+  - 检查压力梯度 / 入口设置

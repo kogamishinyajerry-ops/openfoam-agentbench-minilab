@@ -1,0 +1,29 @@
+# 故障注入：垂直管壁方向网格太粗（分辨率不足）。
+# 本文件为说明性文档（不被代码读取）。
+id: coarse_mesh
+title: 网格太粗（曲率没分辨清楚）
+expected_failure_mode: MESH_TOO_COARSE
+
+description: >
+  把垂直管壁方向的网格数砍到只剩几格。no-slip 仍然满足（壁面速度还是 ~0），
+  但光滑的抛物线退化成一条带棱角的折线，把中心线上的峰值削平了。
+
+injection:
+  field: system/blockMeshDict
+  set:
+    wall_normal_cells: 4    # 应为：~40
+
+signature:
+  wall_slip: ~0             # no-slip 仍满足
+  peak_deficit: positive    # 峰值被削平
+  curvature_rmse: high      # 内部呈折线
+  residual: converged
+
+benchmark_expectation:
+  execution_status: success
+  engineering_status: needs_repair
+  qoi_l2_error: ~0.055
+
+suggested_repair:
+  - 在垂直管壁方向加密网格（沿 H 方向多布几格）
+  - 把中心线附近的抛物线曲率分辨清楚

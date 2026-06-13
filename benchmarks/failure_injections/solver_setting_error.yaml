@@ -1,0 +1,31 @@
+# 故障注入：求解器设置不当（没算到收敛）。
+# 本文件为说明性文档（不被代码读取）。
+id: solver_setting_error
+title: 求解器设置错误（残差没收敛）
+expected_failure_mode: RESIDUAL_NOT_CONVERGED
+
+description: >
+  在流动充分发展之前就把计算停掉了（endTime 太小 / 时间步太大 / 迭代次数太少）。
+  日志显示运行「结束」了，但最终残差仍高于容差、QoI 也还没稳定下来——结果被报成
+  完成，其实并不可信。
+
+injection:
+  field: system/controlDict
+  set:
+    endTime: 0.05           # 应为：~6.0（充分发展）
+    # 等价地：deltaT 太大 / 迭代次数太少
+
+signature:
+  wall_slip: ~0
+  peak_deficit: positive    # 尚未充分发展
+  residual: above_tolerance # 最主要的信号
+
+benchmark_expectation:
+  execution_status: success
+  engineering_status: needs_repair
+  residual_final: ~4e-3
+
+suggested_repair:
+  - 减小时间步 / Courant 数
+  - 增加迭代预算（endTime / 迭代次数）
+  - 收紧 residualControl，然后重跑

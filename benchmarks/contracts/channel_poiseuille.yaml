@@ -1,0 +1,33 @@
+# 基准检验契约 —— 二维平板通道层流（主线案例）。
+# 这是本案例「工程上算对，到底意味着什么」的唯一标准。
+# 注意：tolerances / qoi.name / case_id / reference.path 会被 backend 的
+# contracts.py 真实读取，请勿改键名或数值；其余字段为说明性文档。
+case_id: channel_poiseuille
+title: 平板通道层流（管道里的稳定水流）
+
+physics:
+  channel_height_m: 0.01        # H，上下壁之间的高度
+  channel_length_m: 0.12        # L = 12 H
+  inlet_velocity_ms: 0.10       # U0（均匀入口 -> 体平均流速）
+  kinematic_viscosity_m2s: 5.0e-5
+  reynolds_h: 20                # 层流
+  u_max_ms: 0.15                # = 1.5 * U0（平均流量守恒）
+  analytical: "u(y) = u_max * 4 (y/H) (1 - y/H)"   # 解析解（标准答案）
+
+qoi:
+  name: velocity_profile_l2_error
+  description: 垂直管壁方向的速度剖面相对解析解的相对 L2 误差（关键物理量 QoI）
+  n_points: 41
+
+reference:
+  path: ../references/channel_poiseuille_reference.csv
+
+tolerances:
+  qoi_l2: 0.05                  # 工程合格要求：L2 误差 < 5%
+  residual: 1.0e-4              # 求解器最终残差必须低于此值
+  wall_slip: 0.05               # |u_wall|/u_max 超过此值 => no-slip 被破坏
+
+checks:
+  - execution     # 进程退出码为 0       （普通测试只看得到这一层）
+  - residual      # 残差收敛到容差以下    （数值层面的及格线）
+  - qoi_l2        # 剖面贴合解析解        （工程层面的真相）

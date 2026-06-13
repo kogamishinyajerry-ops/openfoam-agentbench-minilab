@@ -1,0 +1,28 @@
+# 试点实验 001 —— 在主线案例上对照「只有 AI」与「AI + 基准检验」。
+# 注意：mode 与 results_dir 会被 backend 的 seed_experiment.py 真实读取，
+# 请勿改这两个键名或其值；其余字段为说明性文档。
+name: pilot_001
+case_id: channel_poiseuille
+mode: replay                 # replay | mock（openfoam 为可选，按单次运行指定）
+results_dir: results
+
+hero_fault: bc_mismatch
+
+workflows:
+  - agent_only               # 只能看到退出码 + 日志
+  - agent_plus_benchmark     # 能看到 QoI / 残差 / 诊断 / 奖励
+
+faults:
+  - bc_mismatch
+  - coarse_mesh
+  - solver_setting_error
+
+question: >
+  给 AI 配上「基准检验反馈」后，它能不能更快得到一个可信的 OpenFOAM 结果，
+  抓住那些只看退出码的自动化会漏掉的假成功，并把每一次失败都沉淀成可复用的经验？
+
+success_criteria:
+  - false_success_detected（agent+benchmark）> 0           # 抓到了假成功
+  - final_qoi_error（agent+benchmark）< qoi_l2 容差          # 最终进入合格线
+  - rerun_count（agent+benchmark）< rerun_count（agent_only）# 重跑更少
+  - experience_records（agent+benchmark）>= 3               # 沉淀了经验
