@@ -1,0 +1,60 @@
+{
+  "container": "ofab-openfoam",
+  "openfoam_env": "/usr/lib/openfoam/openfoam2312/etc/bashrc",
+  "note": "Live OpenFOAM (icoFoam) runs. Correct case matches the analytical parabola; each injected fault is a real false success the benchmark catches and diagnoses.",
+  "correct": {
+    "execution_status": "success",
+    "engineering_status": "pass",
+    "qoi_error": 0.00125,
+    "residual_final": 6.0277864e-11,
+    "u_peak_sampled": 0.14981,
+    "u_peak_analytical": 0.15
+  },
+  "faults": [
+    {
+      "fault": "bc_mismatch",
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.21735,
+      "residual_final": 6.0071511e-11,
+      "features": {
+        "wall_slip": 0.33333,
+        "peak_deficit": 0.16729,
+        "curvature_rmse": 0.0025
+      },
+      "false_success_detected": true,
+      "diagnosis": "BC_MISMATCH",
+      "confidence": 0.88
+    },
+    {
+      "fault": "coarse_mesh",
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.16047,
+      "residual_final": 5.0844986e-11,
+      "features": {
+        "wall_slip": 0.0,
+        "peak_deficit": 0.11111,
+        "curvature_rmse": 0.01195
+      },
+      "false_success_detected": true,
+      "diagnosis": "MESH_TOO_COARSE",
+      "confidence": 0.79
+    },
+    {
+      "fault": "solver_setting_error",
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.04129,
+      "residual_final": 0.0044433301,
+      "features": {
+        "wall_slip": 0.0,
+        "peak_deficit": 0.05322,
+        "curvature_rmse": 0.0016
+      },
+      "false_success_detected": true,
+      "diagnosis": "RESIDUAL_NOT_CONVERGED",
+      "confidence": 0.95
+    }
+  ]
+}
