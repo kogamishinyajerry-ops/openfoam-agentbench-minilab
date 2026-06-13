@@ -21,8 +21,9 @@ seed:  ## 生成回放数据包 + 前端数据
 experiment:  ## 跑试点实验 -> 全部 JSON 产物 + report.md
 	$(OFAB) experiment experiments/pilot_001/protocol.yaml
 
-test:  ## 跑后端测试(约 200 个用例)
+test:  ## 跑全部测试(后端 212 个 pytest + 前端 12 个 vitest)
 	$(PY) -m pytest backend
+	cd frontend && npm test
 
 build:  ## 前端生产构建
 	cd frontend && npm run build
@@ -33,9 +34,9 @@ dev:  ## 启动前端看板(开发服务器 http://localhost:5173)
 api:  ## 启动看板要读的 API(http://localhost:8000)
 	$(PY) -m uvicorn ofab.api:app --reload --port 8000
 
-verify:  ## 「做完」门：后端测试 + 前端构建都过
+verify:  ## 「做完」门：后端测试 + 前端测试 + 前端构建都过
 	$(PY) -m pytest backend
-	cd frontend && npm run build
+	cd frontend && npm test && npm run build
 
 demo:  ## 路演用：重新 seed 后起看板
 	$(OFAB) demo seed

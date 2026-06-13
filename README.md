@@ -119,15 +119,24 @@ python3 -m venv .venv
 ./.venv/bin/uvicorn ofab.api:app --reload --port 8000
 ```
 
-### 运行测试(pytest)
+### 运行测试(后端 pytest + 前端 vitest)
 
-后端带一套约 200 个用例的测试,把这套闭环的每一个不变量都锁住了:解析解的正确性、
+后端带一套 212 个用例的测试,把这套闭环的每一个不变量都锁住了:解析解的正确性、
 「假成功」检测、失效模式诊断的门优先级、奖励公式,以及全部头条数字(防止任何改动悄悄
 让 Demo 的数据失真)——相当于把这个项目「检验能抓住错误」的主张,反过来用在它自己身上。
+前端另有 12 个 vitest 用例,锁住看板的「数字绑定」(屏幕上的数字确实来自数据包而非写死)、
+错误边界(单区块抛错不白屏)与工具函数。
 
 ```bash
+# 后端(212 个用例)
 ./.venv/bin/pip install -e "backend[test]"   # 装上 pytest + httpx
-./.venv/bin/python -m pytest backend          # 约 200 个用例,全绿
+./.venv/bin/python -m pytest backend          # 212 个用例,全绿
+
+# 前端(12 个用例)
+cd frontend && npm install && npm test        # vitest,全绿
+
+# 或一键跑全部(后端 + 前端):
+make test
 ```
 
 ### 前端(看板 dashboard)
