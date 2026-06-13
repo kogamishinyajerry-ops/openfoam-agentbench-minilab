@@ -1,7 +1,8 @@
 name: CI
 
 # 这个项目的主张就是「自动化检验能抓住回归」——CI 把它落到仓库层面:
-# 每次 push / PR 都跑后端 201 个测试 + 前端构建,头条数字一旦漂了就红。
+# 每次 push / PR 都跑后端 212 个测试 + 前端 12 个测试 + 前端构建,
+# 头条数字一旦漂了（前端绑定或后端物理）就红。
 on:
   push:
   pull_request:
@@ -21,7 +22,7 @@ jobs:
         run: python -m pytest backend
 
   frontend:
-    name: 前端构建 (vite build)
+    name: 前端测试与构建 (vitest + vite build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +33,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: 安装前端依赖
         run: npm ci
+        working-directory: frontend
+      - name: 跑前端测试(vitest:数字绑定锁 + 错误边界 + 工具函数)
+        run: npm test
         working-directory: frontend
       - name: 生产构建
         run: npm run build

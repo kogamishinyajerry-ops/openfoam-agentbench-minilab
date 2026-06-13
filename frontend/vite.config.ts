@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -29,5 +30,13 @@ export default defineConfig({
         },
       },
     },
+  },
+  test: {
+    // jsdom gives component tests a DOM; globals lets tests use describe/it/expect
+    // without importing them. setup.ts wires in jest-dom's matchers.
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.ts",
+    css: false,
   },
 });
