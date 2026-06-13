@@ -1,0 +1,52 @@
+{
+  "container": "ofab-openfoam",
+  "openfoam_env": "/usr/lib/openfoam/openfoam2312/etc/bashrc",
+  "case": "couette_shear",
+  "note": "真实 OpenFOAM（icoFoam）剪切流运行。正确算例复现线性解析解；BC/求解器故障是被同一套基准检验真实抓到的「假成功」；粗网格一项印证「不适用」——线性剖面在任意网格上都精确还原。",
+  "correct": {
+    "execution_status": "success",
+    "engineering_status": "pass",
+    "qoi_error": 4e-05,
+    "residual_final": 1.8652665e-07,
+    "u_top_sampled": 0.1,
+    "u_top_analytical": 0.1
+  },
+  "faults": [
+    {
+      "fault": "bc_mismatch",
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.17996,
+      "residual_final": 2.6706275e-07,
+      "features": {
+        "wall_slip": 0.18,
+        "peak_deficit": 0.0,
+        "curvature_rmse": 0.0
+      },
+      "false_success_detected": true,
+      "diagnosis": "BC_MISMATCH",
+      "confidence": 0.73
+    },
+    {
+      "fault": "solver_setting_error",
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.74895,
+      "residual_final": 0.0075901044,
+      "features": {
+        "wall_slip": 0.0,
+        "peak_deficit": 0.0,
+        "curvature_rmse": 0.00645
+      },
+      "false_success_detected": true,
+      "diagnosis": "RESIDUAL_NOT_CONVERGED",
+      "confidence": 0.95
+    }
+  ],
+  "coarse_mesh_check": {
+    "qoi_error": 6e-05,
+    "engineering_status": "pass",
+    "overall_pass": true,
+    "note": "粗网格（ny=4）下误差仍≈0、照样合格——线性剖面不受网格疏密影响，印证「网格太粗」对剪切流不适用。"
+  }
+}

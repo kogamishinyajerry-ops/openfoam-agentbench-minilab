@@ -151,6 +151,38 @@ def demo_real_evidence():
     console.print(f"[dim]written: {ev['_path']}[/dim]")
 
 
+@demo_app.command("couette-evidence")
+def demo_couette_evidence():
+    """Run the second case (Couette) on a live OpenFOAM container and record what
+    the same benchmark detected — proving generalisation on real hardware
+    (writes data/real_evidence_couette.json + the frontend copy)."""
+    from .demo import capture_couette_evidence
+    from .runner.openfoam_runner import OpenFOAMUnavailable
+    try:
+        ev = capture_couette_evidence()
+    except OpenFOAMUnavailable as exc:
+        console.print(f"[red]OpenFOAM unavailable: {exc}[/red]")
+        raise typer.Exit(1)
+    c = ev["correct"]
+    console.print(Panel.fit(
+        f"container [bold]{ev['container']}[/bold]  ·  案例 [bold]Couette 剪切流[/bold]\n"
+        f"correct case: L2=[green]{c['qoi_error']*100:.2f}%[/green] "
+        f"(u_lid {c['u_top_sampled']} vs {c['u_top_analytical']})",
+        title="real OpenFOAM evidence — 第二个案例"))
+    t = Table(title="同一套基准检验在 Couette 上抓到的真实假成功")
+    t.add_column("fault"); t.add_column("L2"); t.add_column("residual")
+    t.add_column("false success"); t.add_column("diagnosis")
+    for f in ev["faults"]:
+        fs = "[red]yes[/red]" if f["false_success_detected"] else "no"
+        t.add_row(f["fault"], f"{f['qoi_error']*100:.1f}%", f"{f['residual_final']:.1e}",
+                  fs, f"{f['diagnosis']} ({f['confidence']:.0%})")
+    console.print(t)
+    cm = ev["coarse_mesh_check"]
+    console.print(f"[dim]网格检查: 粗网格 L2={cm['qoi_error']*100:.2f}% "
+                  f"({'合格' if cm['overall_pass'] else '不合格'}) —— 印证「网格太粗」不适用[/dim]")
+    console.print(f"[dim]written: {ev['_path']}[/dim]")
+
+
 @app.command()
 def run(
     case: str = typer.Option("channel_poiseuille", help="hero case id"),

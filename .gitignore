@@ -18,6 +18,7 @@ experiments/*/results/
 data/*
 !data/demo_bundle.json
 !data/real_evidence.json
+!data/real_evidence_couette.json
 
 # OS
 .DS_Store

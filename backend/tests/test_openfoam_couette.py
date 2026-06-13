@@ -7,9 +7,17 @@ and is self-validating against the linear analytical solution.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from ofab import config
 from ofab.models import Fault
 from ofab.runner import openfoam_couette as ofc
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+COUETTE_EVIDENCE = REPO_ROOT / "data" / "real_evidence_couette.json"
 
 
 def _gen(tmp_path, fault, repaired):
@@ -66,3 +74,37 @@ def test_pressure_outlet_is_fixed_zero(tmp_path):
     assert "outlet { type fixedValue; value uniform 0; }" in f["p"]
     assert "inlet { type zeroGradient; }" in f["U"]
     assert "outlet { type zeroGradient; }" in f["U"]
+
+
+# --------------------------------------------------------------------------- #
+# Committed real-OpenFOAM evidence (Docker-free: reads the captured JSON)      #
+# --------------------------------------------------------------------------- #
+@pytest.fixture(scope="module")
+def evidence() -> dict:
+    assert COUETTE_EVIDENCE.is_file(), (
+        f"missing {COUETTE_EVIDENCE} — run `ofab demo couette-evidence` on a live container"
+    )
+    return json.loads(COUETTE_EVIDENCE.read_text())
+
+
+def test_real_correct_reproduces_analytical_line(evidence):
+    # the real solver's correct run matches the linear analytical solution
+    assert evidence["correct"]["qoi_error"] < config.QOI_L2_TOL
+    assert evidence["correct"]["engineering_status"] == "pass"
+
+
+def test_real_faults_are_caught_and_diagnosed(evidence):
+    by = {f["fault"]: f for f in evidence["faults"]}
+    # same unchanged benchmark catches real false successes on a different flow
+    assert by["bc_mismatch"]["false_success_detected"] is True
+    assert by["bc_mismatch"]["diagnosis"] == "BC_MISMATCH"
+    assert by["solver_setting_error"]["false_success_detected"] is True
+    assert by["solver_setting_error"]["diagnosis"] == "RESIDUAL_NOT_CONVERGED"
+
+
+def test_real_coarse_mesh_confirms_not_applicable(evidence):
+    """Empirical backing for the honest claim: coarse_mesh does not manifest as
+    error in Couette — a linear profile is reconstructed exactly on any mesh."""
+    cm = evidence["coarse_mesh_check"]
+    assert cm["qoi_error"] < config.QOI_L2_TOL
+    assert cm["overall_pass"] is True

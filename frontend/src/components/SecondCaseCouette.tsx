@@ -8,8 +8,23 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Layers, ShieldAlert, ScanSearch, CheckCircle2, Ban } from "lucide-react";
-import { bundle, pct, FAILURE_SHORT } from "../lib/data";
+import { Layers, ShieldAlert, ScanSearch, CheckCircle2, Ban, Waves } from "lucide-react";
+import { bundle, pct, FAILURE_SHORT, FAULT_LABELS } from "../lib/data";
+import couetteEvidence from "../data/realEvidenceCouette.json";
+import type { Fault } from "../lib/types";
+
+type CouetteEvidence = {
+  container: string;
+  correct: { qoi_error: number; u_top_sampled: number; u_top_analytical: number };
+  faults: {
+    fault: string;
+    qoi_error: number;
+    false_success_detected: boolean;
+    diagnosis: string;
+    confidence: number;
+  }[];
+  coarse_mesh_check: { qoi_error: number; overall_pass: boolean };
+};
 
 /**
  * 第二个案例：Couette 剪切流。证明「基准检验能举一反三」——用完全没改动的
@@ -180,6 +195,75 @@ export default function SecondCaseCouette() {
           </p>
         </div>
       </div>
+
+      {/* 真实 OpenFOAM 验证 —— 第二个案例同样有真刀真枪的证据 */}
+      <RealStrip ev={couetteEvidence as CouetteEvidence} />
     </section>
+  );
+}
+
+function RealStrip({ ev }: { ev: CouetteEvidence }) {
+  return (
+    <div className="mt-3 rounded-xl border border-sky-400/20 bg-sky-400/[0.05] p-4">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-sky-200">
+          <Waves size={14} /> 不是演的：真实 OpenFOAM（icoFoam）也验证过
+        </p>
+        <span className="chip border-sky-400/30 bg-sky-400/10 font-mono text-[10px] text-sky-200">
+          容器：{ev.container}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <EvCard
+          tone="good"
+          title="正确算例"
+          big={pct(ev.correct.qoi_error)}
+          sub={`复现解析直线 · 盖板 ${ev.correct.u_top_sampled}/${ev.correct.u_top_analytical}`}
+        />
+        {ev.faults.map((f) => (
+          <EvCard
+            key={f.fault}
+            tone="bad"
+            title={FAULT_LABELS[f.fault as Fault] ?? f.fault}
+            big={pct(f.qoi_error)}
+            sub={`→ ${FAILURE_SHORT[f.diagnosis] ?? f.diagnosis}（${Math.round(f.confidence * 100)}%）`}
+          />
+        ))}
+        <EvCard
+          tone="neutral"
+          title="网格太粗（检查）"
+          big={pct(ev.coarse_mesh_check.qoi_error)}
+          sub="≈0 · 照样合格 → 印证不适用"
+        />
+      </div>
+      <p className="mt-2 text-center text-[11px] text-slate-500">
+        自己跑：<code className="font-mono text-slate-400">ofab demo couette-evidence</code>
+      </p>
+    </div>
+  );
+}
+
+function EvCard({
+  tone,
+  title,
+  big,
+  sub,
+}: {
+  tone: "good" | "bad" | "neutral";
+  title: string;
+  big: string;
+  sub: string;
+}) {
+  const styles = {
+    good: { box: "border-emerald-400/25 bg-emerald-400/[0.06]", num: "text-emerald-300", t: "text-emerald-200" },
+    bad: { box: "border-rose-400/20 bg-rose-400/[0.05]", num: "text-rose-300", t: "text-rose-200" },
+    neutral: { box: "border-white/10 bg-ink-900/50", num: "text-slate-200", t: "text-slate-300" },
+  }[tone];
+  return (
+    <div className={`rounded-lg border ${styles.box} p-3`}>
+      <p className={`text-xs font-semibold ${styles.t}`}>{title}</p>
+      <p className={`stat-num mt-1 text-xl font-bold ${styles.num}`}>{big}</p>
+      <p className="mt-0.5 text-[10px] leading-tight text-slate-400">{sub}</p>
+    </div>
   );
 }
