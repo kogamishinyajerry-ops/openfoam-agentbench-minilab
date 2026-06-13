@@ -20,6 +20,15 @@ body {
     radial-gradient(800px 520px at 50% 108%, rgba(52, 211, 153, 0.08), transparent 60%);
 }
 
+@layer base {
+  /* 键盘无障碍：给所有可聚焦的交互元素一个一致、醒目的聚焦环。用 :where() 保持
+     0 优先级，组件自身样式照常生效；:focus-visible 只在键盘聚焦时出现，鼠标点击
+     不会触发，不打扰鼠标用户。深色主题下默认聚焦轮廓几乎看不见，这条补齐它。 */
+  :where(a, button, [role="button"], input, select, textarea, [tabindex]):focus-visible {
+    @apply outline-none ring-2 ring-cyan-400 ring-offset-2 ring-offset-ink-950;
+  }
+}
+
 @layer components {
   .glass {
     @apply rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-card;
