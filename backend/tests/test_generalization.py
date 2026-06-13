@@ -94,3 +94,38 @@ def test_couette_bc_fault_is_not_misread_as_mesh():
     d = diagnose(cou)
     assert d.failure_mode.value == "BC_MISMATCH"
     assert d.failure_mode.value != "MESH_TOO_COARSE"
+
+
+def test_experience_recall_is_case_independent(tmp_path):
+    """The 错题本 (experience store) is keyed by failure MODE, not case — so a
+    lesson learned on one flow is recalled for the same failure mode on a
+    *different* flow. The core BC fix (restore no-slip) genuinely applies to both
+    a pressure-driven channel and a shear-driven Couette, since both have a
+    no-slip wall. This is the experience flywheel transferring across cases."""
+    from ofab.memory.case_miner import mine_experience
+    from ofab.memory.store import ExperienceStore
+    from ofab.models import Diagnosis, FailureMode
+
+    store = ExperienceStore(tmp_path / "exp.jsonl")
+    # a BC_MISMATCH lesson sedimented on the hero (Poiseuille) case
+    diag = Diagnosis(
+        run_id="hero_bc",
+        failure_mode=FailureMode.BC_MISMATCH,
+        confidence=0.83,
+        evidence=[],
+        suggested_repair=["恢复 no-slip"],
+    )
+    store.append(
+        mine_experience(
+            diag, Fault.BC_MISMATCH, qoi_before=0.18, qoi_after=0.02,
+            case_id="channel_poiseuille",
+        )
+    )
+
+    # a DIFFERENT flow (Couette) hits the same failure mode -> recalls the lesson
+    recalled = store.recall(FailureMode.BC_MISMATCH)
+    assert recalled is not None
+    assert recalled.case_id == "channel_poiseuille"   # learned on case 1
+    assert "no-slip" in recalled.repair               # transferable core fix
+    # a mode never sedimented returns nothing — no spurious cross-mode transfer
+    assert store.recall(FailureMode.MESH_TOO_COARSE) is None
