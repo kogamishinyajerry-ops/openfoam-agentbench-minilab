@@ -8,6 +8,7 @@ case-generation path of openfoam_runner is exercised.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -338,3 +339,73 @@ def test_generate_case_does_not_write_into_real_data_dir(tmp_path):
     real_data = Path("/Users/Zhuanz/Desktop/OpenFOAM-AgentBench MiniLab/data")
     for f in written:
         assert real_data not in f.resolve().parents
+
+
+# --------------------------------------------------------------------------- #
+# Committed real-OpenFOAM evidence for the HERO case (Docker-free: reads JSON) #
+# --------------------------------------------------------------------------- #
+# The headline "真实 OpenFOAM 实测" numbers quoted in README/AGENTS.md live in
+# data/real_evidence.json (captured by `ofab demo real-evidence` on a live
+# container). The Couette evidence has a regression lock (test_openfoam_couette);
+# this is the parity lock for the hero — so a broken re-capture (or drifted
+# physics) can't silently ship wrong headline numbers. Binds to config
+# tolerances, never to "whatever was captured".
+REPO_ROOT = Path(__file__).resolve().parents[2]
+HERO_EVIDENCE = REPO_ROOT / "data" / "real_evidence.json"
+
+
+@pytest.fixture(scope="module")
+def hero_evidence() -> dict:
+    assert HERO_EVIDENCE.is_file(), (
+        f"missing {HERO_EVIDENCE} — run `ofab demo real-evidence` on a live container"
+    )
+    return json.loads(HERO_EVIDENCE.read_text())
+
+
+def test_real_correct_reproduces_analytical_parabola(hero_evidence):
+    # The live solver's correct run matches the analytical parabola: low L2 and a
+    # sampled peak that lands on U_MAX (the parabola's apex).
+    c = hero_evidence["correct"]
+    assert c["qoi_error"] < config.QOI_L2_TOL
+    assert c["engineering_status"] == "pass"
+    assert c["u_peak_sampled"] == pytest.approx(c["u_peak_analytical"], abs=5e-3)
+    assert c["u_peak_analytical"] == pytest.approx(config.U_MAX, abs=1e-6)
+
+
+def test_real_all_three_faults_are_false_successes(hero_evidence):
+    # Every injected fault exits cleanly (success) yet is engineering-wrong, and
+    # the unchanged benchmark flags all three as false successes.
+    by = {f["fault"]: f for f in hero_evidence["faults"]}
+    assert set(by) == {"bc_mismatch", "coarse_mesh", "solver_setting_error"}
+    for f in by.values():
+        assert f["execution_status"] == "success"
+        assert f["engineering_status"] == "needs_repair"
+        assert f["false_success_detected"] is True
+
+
+def test_real_faults_route_to_correct_failure_modes(hero_evidence):
+    # The same diagnosis maps each real fault to its mode from the captured features.
+    by = {f["fault"]: f for f in hero_evidence["faults"]}
+    assert by["bc_mismatch"]["diagnosis"] == "BC_MISMATCH"
+    assert by["coarse_mesh"]["diagnosis"] == "MESH_TOO_COARSE"
+    assert by["solver_setting_error"]["diagnosis"] == "RESIDUAL_NOT_CONVERGED"
+
+
+def test_real_bc_and_coarse_caught_by_qoi_gate_while_converged(hero_evidence):
+    # bc_mismatch and coarse_mesh converge fine (residual below tol) — a pure
+    # execution+residual check would PASS them. They are caught only because the
+    # QoI (profile-vs-analytical) is above tolerance. This is the core thesis.
+    by = {f["fault"]: f for f in hero_evidence["faults"]}
+    for name in ("bc_mismatch", "coarse_mesh"):
+        assert by[name]["qoi_error"] > config.QOI_L2_TOL          # QoI betrays it
+        assert by[name]["residual_final"] < config.RESIDUAL_TOL   # yet residual is clean
+
+
+def test_real_solver_fault_caught_by_residual_despite_passing_qoi(hero_evidence):
+    # The mirror-image false success: solver_setting_error's QoI (~4%) is actually
+    # BELOW the 5% tolerance — a QoI-only check would wrongly PASS it. It is caught
+    # only because the residual is above tolerance. Two distinct betrayal channels.
+    s = next(f for f in hero_evidence["faults"] if f["fault"] == "solver_setting_error")
+    assert s["qoi_error"] < config.QOI_L2_TOL                     # QoI alone would pass
+    assert s["residual_final"] > config.RESIDUAL_TOL              # residual betrays it
+    assert s["diagnosis"] == "RESIDUAL_NOT_CONVERGED"
