@@ -93,6 +93,13 @@ def flywheel() -> dict:
     return {"flywheel": _bundle()["flywheel"]}
 
 
+@app.get("/api/demo/second-case")
+def second_case() -> dict:
+    """The second case (Couette / shear flow) — proves the benchmark generalises:
+    the same unchanged scorecard + diagnosis judge a different flow."""
+    return {"second_case": _bundle()["second_case"]}
+
+
 @app.get("/api/demo/bundle")
 def bundle() -> dict:
     return _bundle()

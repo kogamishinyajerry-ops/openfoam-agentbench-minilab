@@ -275,6 +275,18 @@ def test_api_flywheel_route(client: TestClient):
     assert fw["recalled"]["repair"]  # non-empty recalled fix
 
 
+def test_api_second_case_route(client: TestClient):
+    """GET /api/demo/second-case -> 200; the same benchmark catches a false success
+    on a different flow (Couette) and diagnoses BC_MISMATCH."""
+    r = client.get("/api/demo/second-case")
+    assert r.status_code == 200
+    sc = r.json()["second_case"]
+    assert sc["case"]["id"] == "couette_shear"
+    assert sc["scorecard"]["false_success"] is True
+    assert sc["diagnosis"]["failure_mode"] == "BC_MISMATCH"
+    assert sc["repaired_pass"] is True
+
+
 # --------------------------------------------------------------------------- #
 # API — error handling                                                        #
 # --------------------------------------------------------------------------- #
