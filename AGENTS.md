@@ -38,7 +38,7 @@ runner (mock | replay | openfoam)  →  RunResult
 ./.venv/bin/ofab experiment experiments/pilot_001/protocol.yaml   # artifacts + report
 ```
 
-任何会影响数字的后端改动之后，都要重新 seed，好让 `frontend/src/data/demoRuns.json` 和 `data/real_evidence.json`（如果你重跑过 `ofab demo real-evidence`）保持同步。
+任何会影响数字的后端改动之后，都要重新 seed，好让 `frontend/src/data/demoRuns.json` 和 `data/real_evidence.json`（如果你重跑过 `ofab demo real-evidence`）保持同步。第二个案例的真实证据用 `ofab demo couette-evidence` 重跑（同写 `data/real_evidence_couette.json` 与前端副本）。真实运行需要一个在跑的 OpenFOAM 容器——本机的 `ofab-openfoam`（ESI v2312）会话间会自动停掉，先 `docker start ofab-openfoam` 再跑。
 
 ## 如何加一个新故障（How to add a new fault）
 
@@ -56,11 +56,24 @@ runner (mock | replay | openfoam)  →  RunResult
 
 ## 如何加一个新案例（How to add a new case）
 
-把 `config.py`（按案例的参数）和 `physics.py`（它的参考解 + 特征）泛化一下。只要 benchmark 层拿到的是「剖面 + 参考解 + 特征」，它就是与案例无关（case-agnostic）的。再加一个 `benchmarks/contracts/<case>.yaml`。
+核心洞察：`benchmark.scorecard` / `benchmark.diagnosis` 是**完全与案例无关（case-agnostic）**的——它们只读 `RunResult` 的字段（qoi_error / residual_final / features 字典 + 容差），不关心是哪种流动。所以加新案例 = 提供「参考解 + 故障剖面 + 特征」，benchmark 层一行不用改。
+
+**已有的现成范例：第二个案例 Couette 剪切流**（`couette_shear`）。它就是照下面这条路加进来的，整个过程是 **additive 的、没碰任何已锁定的 hero 数**——直接照抄即可：
+
+1. `config.py` —— 追加一段「Second case」常量（`COUETTE_*`），复用共享容差/采样/种子。
+2. `physics_couette.py`（**纯 numpy，镜像 `physics.py`**）—— 参考解 + 故障合成 + **该案例专属的特征提取**。注意 Couette 的 `couette_features` 只查**静止壁**的滑移（移动盖板本就该动，不算滑移）——特征提取要贴合案例物理，不能照搬。
+3. `demo/couette_case.py` —— `build_second_case()` 把故障/修复剖面打包成标准 `RunResult`，喂给**未改动的** `build_scorecard` + `diagnose`，组成 additive 的 `bundle["second_case"]`（仿照 `flywheel` 的加法，不动 hero 数）。
+4. `runner/openfoam_couette.py` —— 真实运行器（复用 `openfoam_runner` 的容器发现/日志解析），生成该案例的 OpenFOAM 算例；用解析解**自校验**（正确算例必须复现解析解，否则不提交证据）。
+5. `demo/couette_evidence.py` + CLI `ofab demo couette-evidence` —— 捕获真实证据，同写 `data/` 与 `frontend/src/data/` 两份。
+6. 前端 `SecondCaseCouette.tsx` + `App.tsx`（加一个 `<Section>`）+ `SectionNav` 条目；`lib/types.ts` 加契约。
+7. 测试：`test_physics_couette.py`（不变量）、`test_replay_bundle.py`（second_case 锁）、`test_openfoam_couette.py`（算例生成 + 证据）、`test_generalization.py`（同一 diagnose 判两个案例）。
+8. 老实标注**不适用的故障**：Couette 是线性解，`coarse_mesh` 在任意网格上都精确还原 → 在 `not_applicable` 里说明，并用一次真实粗网格运行（L2≈0）实证。框架按案例匹配故障，不硬套。
+
+> 第二案例 CANON：`couette_shear`，下壁固定 no-slip、上盖板拖动 U_lid = 0.10 m/s，H = 0.01 m，ν = 5e-5，Re ≈ 20。解析解 u(y) = U_lid·y/H（直线）。注入故障 = 静止壁滑移（slip 0.18 → L2 恰 18%；修复 0.02 → 2%）。真实运行实测：正确 0.00% / bc 18.0%→BC_MISMATCH(73%) / solver 74.9%→RESIDUAL_NOT_CONVERGED(95%) / 粗网格 ≈0.01% 合格（实证不适用）。`ofab run --case couette_shear --mode openfoam|mock` 可直接跑。
 
 ## 审查纪律（Review discipline）
 
-涉及安全 / 契约敏感的改动（run / benchmark / diagnosis 这条路径、真实 OpenFOAM 运行器、任何 JSON schema）值得请第二双眼睛看。宣称「做完」之前，跑 `./.venv/bin/python -m pytest backend`（约 200 个用例，锁住物理不变量 / 假成功检测 / 诊断门 / 奖励公式 / 全部头条数字），把整条 CLI 链（`run → benchmark → diagnose → reward`）重跑一遍，并跑 `npm run build`。「做完」的意思是这条闭环能**复现**，而不是「我觉得它能跑」。
+涉及安全 / 契约敏感的改动（run / benchmark / diagnosis 这条路径、真实 OpenFOAM 运行器、任何 JSON schema）值得请第二双眼睛看。宣称「做完」之前，跑 `./.venv/bin/python -m pytest backend`（241 个用例，锁住两个案例的物理不变量 / 假成功检测 / 诊断门 / 奖励公式 / 全部头条数字 / 泛化主张），把整条 CLI 链（`run → benchmark → diagnose → reward`）重跑一遍，并跑前端 `npm test`（22 个）+ `npm run build`，或一键 `make verify`。「做完」的意思是这条闭环能**复现**，而不是「我觉得它能跑」。
 
 > 改了 `physics.py` / `config.py` 里任何会影响数字的东西后：先 `ofab demo seed` 重新生成回放包，再 `pytest backend`——`test_replay_bundle.py` 是头条数字的回归锁，会立刻告诉你哪个数字漂了、以及前端 `demoRuns.json` 是否还和后端同步。
 
