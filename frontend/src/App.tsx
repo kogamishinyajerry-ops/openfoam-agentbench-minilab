@@ -7,6 +7,7 @@ import MetricCards from "./components/MetricCards";
 import ExperimentTimeline from "./components/ExperimentTimeline";
 import DiagnosisPanel from "./components/DiagnosisPanel";
 import ExperienceMemory from "./components/ExperienceMemory";
+import FlywheelRecall from "./components/FlywheelRecall";
 import RealEvidence from "./components/RealEvidence";
 
 const MODE_CN: Record<string, string> = {
@@ -56,6 +57,7 @@ export default function App() {
         </div>
         <DiagnosisPanel />
         <ExperienceMemory />
+        <FlywheelRecall />
         <RealEvidence />
       </main>
 

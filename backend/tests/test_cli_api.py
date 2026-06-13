@@ -156,6 +156,17 @@ def test_cli_no_args_shows_help(runner: CliRunner):
     assert "Usage" in result.output or "benchmark" in result.output
 
 
+@bundle_required
+def test_cli_recall_hits_seeded_experience(runner: CliRunner):
+    """`ofab recall --fault bc_mismatch` finds the seeded lesson in the experience
+    store and prints the recalled failure mode (the flywheel's retrieval half).
+
+    Depends on the same seeding as the bundle (seed() populates the store)."""
+    result = runner.invoke(cli_app, ["recall", "--fault", "bc_mismatch"])
+    assert result.exit_code == 0, result.output
+    assert "BC_MISMATCH" in result.output
+
+
 # --------------------------------------------------------------------------- #
 # CLI — subprocess via the installed `ofab` console script (real exit codes)  #
 # --------------------------------------------------------------------------- #
@@ -249,6 +260,19 @@ def test_api_profile_route(client: TestClient):
     assert profiles["agent_only_final"]["qoi_error"] == pytest.approx(
         0.0872, abs=2e-3
     )
+
+
+@bundle_required
+def test_api_flywheel_route(client: TestClient):
+    """GET /api/demo/flywheel -> 200; the recurrence (second encounter) recalls a
+    stored lesson and is fewer reruns + faster than the first encounter."""
+    r = client.get("/api/demo/flywheel")
+    assert r.status_code == 200
+    fw = r.json()["flywheel"]
+    assert fw["fault"] == "bc_mismatch"
+    assert fw["second_encounter"]["rerun_count"] < fw["first_encounter"]["rerun_count"]
+    assert fw["second_encounter"]["time_s"] < fw["first_encounter"]["time_s"]
+    assert fw["recalled"]["repair"]  # non-empty recalled fix
 
 
 # --------------------------------------------------------------------------- #

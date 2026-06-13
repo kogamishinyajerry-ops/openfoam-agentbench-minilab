@@ -86,6 +86,13 @@ def memory() -> dict:
     return {"experience": _bundle()["experience"]}
 
 
+@app.get("/api/demo/flywheel")
+def flywheel() -> dict:
+    """The flywheel payoff: a recurring fault recalls a stored lesson and is fixed
+    in fewer rounds (first vs second encounter)."""
+    return {"flywheel": _bundle()["flywheel"]}
+
+
 @app.get("/api/demo/bundle")
 def bundle() -> dict:
     return _bundle()

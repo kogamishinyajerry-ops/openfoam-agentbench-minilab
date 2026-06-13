@@ -319,6 +319,43 @@ def build_bundle(mode: RunMode = RunMode.REPLAY) -> dict:
                      "repaired": profiles["repaired"]["qoi_error"]},
     }
 
+    # --- flywheel: store → recall → faster on recurrence ------------------
+    # First time the hero fault is hit, the benchmark guides a 2-rerun repair and
+    # sediments a lesson. When the SAME fault recurs, that lesson is recalled and
+    # the known fix applied directly — one rerun instead of two. The payoff is
+    # computed the same way as the head-to-head time (solver runtime + overhead).
+    bc_exp = experience[0]  # the bc_mismatch lesson sedimented just above
+    overhead_ab = _OVERHEAD[Workflow.AGENT_PLUS_BENCHMARK]
+    second_rerun = 1
+    second_time = round(_SOLVER_RUNTIMES[0] + _SOLVER_RUNTIMES[1] + 2 * overhead_ab, 1)
+    u_inter = physics.bc_profile(_BENCH_BC_SLIPS[0], yn)
+    flywheel = {
+        "fault": HERO_FAULT.value,
+        "failure_mode": bc_exp.failure_mode.value,
+        "recalled": {
+            "symptom": bc_exp.symptom,
+            "repair": bc_exp.repair,
+            "outcome": bc_exp.outcome,
+        },
+        "first_encounter": {
+            "rerun_count": ab_m.rerun_count,
+            "time_s": ab_m.time_to_pass_s,
+            "time_label": _fmt_duration(ab_m.time_to_pass_s),
+            "path_pct": [round(profiles["failed"]["qoi_error"] * 100, 1),
+                         round(physics.l2_relative_error(u_inter, u_ref) * 100, 1),
+                         round(profiles["repaired"]["qoi_error"] * 100, 1)],
+        },
+        "second_encounter": {
+            "rerun_count": second_rerun,
+            "time_s": second_time,
+            "time_label": _fmt_duration(second_time),
+            "path_pct": [round(profiles["failed"]["qoi_error"] * 100, 1),
+                         round(profiles["repaired"]["qoi_error"] * 100, 1)],
+        },
+        "rounds_saved": ab_m.rerun_count - second_rerun,
+        "time_saved_pct": _delta_pct(ab_m.time_to_pass_s, second_time),
+    }
+
     experiment = ExperimentResult(
         case_id=config.CASE_ID,
         mode=mode,
@@ -358,6 +395,7 @@ def build_bundle(mode: RunMode = RunMode.REPLAY) -> dict:
         "reward": {"before": reward_before.model_dump(mode="json"), "after": reward_after.model_dump(mode="json")},
         "rewards": [r.model_dump(mode="json") for r in rewards],
         "experience": [e.model_dump(mode="json") for e in experience],
+        "flywheel": flywheel,
         "scorecards": [s.model_dump(mode="json") for s in scorecards],
         "runs": [r.model_dump(mode="json") for r in experiment.runs],
     }

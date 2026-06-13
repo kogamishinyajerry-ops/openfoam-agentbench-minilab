@@ -86,6 +86,23 @@ export interface ExperienceRecord {
   created_round: number;
 }
 
+export interface FlywheelEncounter {
+  rerun_count: number;
+  time_s: number;
+  time_label: string;
+  path_pct: number[];
+}
+
+export interface Flywheel {
+  fault: Fault;
+  failure_mode: FailureMode;
+  recalled: { symptom: string; repair: string; outcome: string };
+  first_encounter: FlywheelEncounter;
+  second_encounter: FlywheelEncounter;
+  rounds_saved: number;
+  time_saved_pct: number;
+}
+
 export interface ComparisonMetric {
   before: number;
   after: number;
@@ -134,6 +151,7 @@ export interface Bundle {
   reward: { before: Reward; after: Reward };
   rewards: Reward[];
   experience: ExperienceRecord[];
+  flywheel: Flywheel;
   scorecards: unknown[];
   runs: RunResult[];
 }

@@ -36,3 +36,14 @@ class ExperienceStore:
             if line:
                 out.append(ExperienceRecord.model_validate_json(line))
         return out
+
+    def recall(self, failure_mode) -> ExperienceRecord | None:
+        """The flywheel's *retrieval* half: given a failure mode, return the most
+        recent stored lesson for it (or None if never seen). This is what lets a
+        recurring fault reuse a known fix instead of exploring from scratch.
+
+        ``failure_mode`` may be a ``FailureMode`` enum or its string value.
+        """
+        key = getattr(failure_mode, "value", failure_mode)
+        matches = [r for r in self.all() if r.failure_mode.value == key]
+        return matches[-1] if matches else None

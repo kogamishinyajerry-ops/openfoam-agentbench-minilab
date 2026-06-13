@@ -5,6 +5,7 @@
     ofab benchmark runs/latest
     ofab diagnose runs/latest
     ofab reward runs/latest
+    ofab recall --fault bc_mismatch
     ofab experiment experiments/pilot_001/protocol.yaml
 """
 from __future__ import annotations
@@ -256,6 +257,36 @@ def reward(run_path: str = typer.Argument("runs/latest"),
     t.add_row("decision", rw.decision)
     t.add_row("focus", ", ".join(rw.suggested_focus) or "—")
     console.print(Panel(t, title="Reward", border_style=color))
+
+
+@app.command()
+def recall(fault: Fault = typer.Option(Fault.BC_MISMATCH, help="recurring fault to look up")):
+    """Recall a prior lesson for a recurring fault from the experience store — the
+    flywheel's retrieval half. Run `ofab demo seed` first to populate the store."""
+    from .memory import ExperienceStore
+    from .models import FailureMode
+    fault_mode = {
+        Fault.BC_MISMATCH: FailureMode.BC_MISMATCH,
+        Fault.COARSE_MESH: FailureMode.MESH_TOO_COARSE,
+        Fault.SOLVER_SETTING_ERROR: FailureMode.RESIDUAL_NOT_CONVERGED,
+    }
+    mode = fault_mode.get(fault)
+    rec = ExperienceStore().recall(mode) if mode else None
+    if rec is None:
+        console.print(Panel.fit(
+            f"[yellow]错题本里还没有 `{fault.value}` —— 这次只能从头摸索。[/yellow]\n"
+            f"[dim]先跑 `ofab demo seed` 沉淀经验，再回来 recall。[/dim]",
+            title="recall", border_style="yellow"))
+        return
+    t = Table(show_header=False, box=None)
+    t.add_row("failure_mode", f"[bold]{rec.failure_mode.value}[/bold]")
+    t.add_row("症状", rec.symptom)
+    t.add_row("修复方式", f"[green]{rec.repair}[/green]")
+    t.add_row("上次结果", rec.outcome)
+    t.add_row("回归用例", "✅ 是" if rec.promote_to_regression else "否")
+    console.print(Panel(
+        t, title=f"recall · {fault.value} —— 命中错题本，直接套用已知修复",
+        border_style="cyan"))
 
 
 @app.command()

@@ -36,7 +36,7 @@ def bundle() -> dict:
 def test_bundle_top_level_keys(bundle: dict) -> None:
     required = {
         "case", "profiles", "runs", "scorecards", "diagnoses", "rewards",
-        "workflows", "timeline", "comparison", "experience", "story",
+        "workflows", "timeline", "comparison", "experience", "story", "flywheel",
     }
     missing = required - set(bundle.keys())
     assert not missing, f"bundle missing keys: {sorted(missing)}"
@@ -179,6 +179,48 @@ def test_per_fault_diagnosis_modes(bundle: dict) -> None:
         d = diags[r0["run_id"]]
         assert d["failure_mode"] == mode, f"{fault} -> {d['failure_mode']} (want {mode})"
         assert 0.0 < d["confidence"] <= 1.0
+
+
+# --------------------------------------------------------------------------- #
+# Flywheel — store → recall → faster on recurrence                            #
+# --------------------------------------------------------------------------- #
+def test_flywheel_present_and_shaped(bundle: dict) -> None:
+    fw = bundle["flywheel"]
+    assert fw["fault"] == "bc_mismatch"
+    assert fw["failure_mode"] == "BC_MISMATCH"
+    for k in ("symptom", "repair", "outcome"):
+        assert fw["recalled"][k]  # non-empty recalled lesson
+
+
+def test_flywheel_recurrence_is_faster(bundle: dict) -> None:
+    fw = bundle["flywheel"]
+    first, second = fw["first_encounter"], fw["second_encounter"]
+    # recall cuts a repair round and wall-clock time.
+    assert second["rerun_count"] < first["rerun_count"]
+    assert second["time_s"] < first["time_s"]
+    assert fw["rounds_saved"] == first["rerun_count"] - second["rerun_count"]
+    assert fw["time_saved_pct"] < 0  # negative = faster
+
+
+def test_flywheel_paths_start_failed_end_passing(bundle: dict) -> None:
+    fw = bundle["flywheel"]
+    tol_pct = bundle["case"]["tolerances"]["qoi_l2"] * 100
+    for enc in (fw["first_encounter"], fw["second_encounter"]):
+        path = enc["path_pct"]
+        assert path[0] > tol_pct           # starts as a failure
+        assert path[-1] < tol_pct          # ends within tolerance
+    # second encounter skips the intermediate exploration step.
+    assert len(fw["first_encounter"]["path_pct"]) == 3
+    assert len(fw["second_encounter"]["path_pct"]) == 2
+
+
+def test_flywheel_recalled_matches_stored_experience(bundle: dict) -> None:
+    """The recalled lesson is exactly the stored bc_mismatch experience record."""
+    fw = bundle["flywheel"]
+    bc_exp = next(e for e in bundle["experience"] if e["failure_mode"] == "BC_MISMATCH")
+    assert fw["recalled"]["symptom"] == bc_exp["symptom"]
+    assert fw["recalled"]["repair"] == bc_exp["repair"]
+    assert fw["recalled"]["outcome"] == bc_exp["outcome"]
 
 
 # --------------------------------------------------------------------------- #

@@ -841,6 +841,36 @@
       "created_round": 1
     }
   ],
+  "flywheel": {
+    "fault": "bc_mismatch",
+    "failure_mode": "BC_MISMATCH",
+    "recalled": {
+      "symptom": "程序成功跑完，但速度剖面偏离标准答案 —— 壁面出现了不该有的滑移速度",
+      "repair": "恢复壁面 no-slip 边界条件，并检查压力梯度设置",
+      "outcome": "误差从 18.4% 降到 2.1%"
+    },
+    "first_encounter": {
+      "rerun_count": 2,
+      "time_s": 249.8,
+      "time_label": "4m 10s",
+      "path_pct": [
+        18.4,
+        5.8,
+        2.1
+      ]
+    },
+    "second_encounter": {
+      "rerun_count": 1,
+      "time_s": 167.3,
+      "time_label": "2m 47s",
+      "path_pct": [
+        18.4,
+        2.1
+      ]
+    },
+    "rounds_saved": 1,
+    "time_saved_pct": -33.0
+  },
   "scorecards": [
     {
       "run_id": "ab_bc_mismatch_0",

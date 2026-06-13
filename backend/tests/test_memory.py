@@ -249,3 +249,44 @@ def test_store_does_not_touch_real_data_dir(tmp_path):
     store.append(_record())
     assert str(store.path).startswith(str(tmp_path))
     assert DATA_DIR not in store.path.parents
+
+
+# --------------------------------------------------------------------------- #
+# ExperienceStore.recall — the flywheel's retrieval half                      #
+# --------------------------------------------------------------------------- #
+def test_recall_empty_store_returns_none(tmp_path):
+    store = ExperienceStore(tmp_path / "mem.jsonl")
+    assert store.recall(FailureMode.BC_MISMATCH) is None
+
+
+def test_recall_returns_matching_mode(tmp_path):
+    store = ExperienceStore(tmp_path / "mem.jsonl")
+    store.extend([
+        _record(case_id="bc", mode=FailureMode.BC_MISMATCH),
+        _record(case_id="mesh", mode=FailureMode.MESH_TOO_COARSE),
+    ])
+    rec = store.recall(FailureMode.MESH_TOO_COARSE)
+    assert rec is not None
+    assert rec.failure_mode is FailureMode.MESH_TOO_COARSE
+    assert rec.case_id == "mesh"
+
+
+def test_recall_accepts_string_value(tmp_path):
+    store = ExperienceStore(tmp_path / "mem.jsonl")
+    store.append(_record(mode=FailureMode.BC_MISMATCH))
+    assert store.recall("BC_MISMATCH") is not None
+
+
+def test_recall_returns_latest_when_multiple(tmp_path):
+    # A recurring fault recalls the MOST RECENT lesson (the flywheel accrues).
+    store = ExperienceStore(tmp_path / "mem.jsonl")
+    store.append(_record(case_id="old", mode=FailureMode.BC_MISMATCH, rnd=0))
+    store.append(_record(case_id="new", mode=FailureMode.BC_MISMATCH, rnd=5))
+    rec = store.recall(FailureMode.BC_MISMATCH)
+    assert rec is not None and rec.case_id == "new"
+
+
+def test_recall_unseen_mode_returns_none(tmp_path):
+    store = ExperienceStore(tmp_path / "mem.jsonl")
+    store.append(_record(mode=FailureMode.BC_MISMATCH))
+    assert store.recall(FailureMode.RESIDUAL_NOT_CONVERGED) is None
