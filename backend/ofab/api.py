@@ -100,6 +100,14 @@ def second_case() -> dict:
     return {"second_case": _bundle()["second_case"]}
 
 
+@app.get("/api/demo/third-case")
+def third_case() -> dict:
+    """The third case (round-pipe Hagen–Poiseuille) — pushes generalisation one
+    further: the same unchanged scorecard + diagnosis judge a different flow AND a
+    different headline fault (coarse_mesh → MESH_TOO_COARSE, not BC_MISMATCH)."""
+    return {"third_case": _bundle()["third_case"]}
+
+
 @app.get("/api/demo/bundle")
 def bundle() -> dict:
     return _bundle()

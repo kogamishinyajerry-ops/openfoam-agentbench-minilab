@@ -452,6 +452,21 @@ def test_api_second_case_route(client: TestClient):
     assert sc["repaired_pass"] is True
 
 
+def test_api_third_case_route(client: TestClient):
+    """GET /api/demo/third-case -> 200; the same benchmark catches a false success on
+    a THIRD flow (round pipe) and diagnoses MESH_TOO_COARSE — a different headline
+    fault than the other two cases' BC_MISMATCH (generalises flow AND fault)."""
+    r = client.get("/api/demo/third-case")
+    assert r.status_code == 200
+    tc = r.json()["third_case"]
+    assert tc["case"]["id"] == "pipe_poiseuille"
+    assert tc["scorecard"]["false_success"] is True
+    assert tc["diagnosis"]["failure_mode"] == "MESH_TOO_COARSE"
+    assert tc["diagnosis"]["failure_mode"] != "BC_MISMATCH"
+    assert tc["repaired_pass"] is True
+    assert tc["hero_fault"] == "coarse_mesh"
+
+
 # --------------------------------------------------------------------------- #
 # API — error handling                                                        #
 # --------------------------------------------------------------------------- #
