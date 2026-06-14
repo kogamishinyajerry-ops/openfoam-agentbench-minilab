@@ -61,3 +61,32 @@ COUETTE_U_MAX = COUETTE_LID_VELOCITY   # the linear profile peaks at the moving 
 # within tolerance). wall_slip feature == slip, so diagnosis fires BC_MISMATCH.
 COUETTE_BC_SLIP = 0.18          # injected slip  -> ~18% L2, a false success
 COUETTE_REPAIR_SLIP = 0.02      # residual slip after the fix -> ~2% L2, passes
+
+
+# A THIRD analytically-verifiable flow, added to widen the generalisation proof
+# from "same benchmark, different flow" to "same benchmark, different flow AND a
+# different HERO fault". Round-pipe Hagen–Poiseuille: a RADIAL parabola
+# u(r) = u_max (1 - (r/R)^2), peak on the axis, no-slip at the wall, u_max = 2*U_mean.
+# Hero fault = COARSE_MESH — the curved radial profile is genuinely under-resolved
+# on a coarse radial mesh (centreline peak clipped + faceted), so it routes to
+# MESH_TOO_COARSE via the unchanged diagnose(). This is *exactly* the fault that
+# does NOT apply to linear Couette (honestly marked not_applicable there) — the pipe
+# is its natural home, closing the "framework matches faults to flows" honesty loop.
+# Shared benchmark thresholds / sampling / seed reused; no hero/Couette constant touched.
+PIPE_CASE_ID = "pipe_poiseuille"
+PIPE_TITLE = "圆管层流（Hagen–Poiseuille：水管里的稳定水流）"
+
+PIPE_RADIUS = 0.005             # R  [m]   (diameter 2R = 0.01 = same scale as channel H)
+PIPE_LENGTH = 0.12              # L  [m] = 12 * diameter
+PIPE_MEAN_VELOCITY = 0.10       # U_mean [m/s]  bulk (cross-section average) velocity
+PIPE_KINEMATIC_VISCOSITY = 5.0e-5   # nu [m^2/s]  (same fluid as the other cases)
+
+REYNOLDS_PIPE = PIPE_MEAN_VELOCITY * (2 * PIPE_RADIUS) / PIPE_KINEMATIC_VISCOSITY  # ~20
+PIPE_U_MAX = 2.0 * PIPE_MEAN_VELOCITY   # round-pipe peak = 2*U_mean (= 0.20 m/s)
+
+# Injected fault (case-3 hero): under-resolved RADIAL mesh. Cell-centre sampling of
+# the parabola clips the axis peak and facets the curve; on the symmetric sample grid
+# this lands the relative L2 clearly past the 5% tolerance (false success) while the
+# wall stays no-slip (so it diagnoses MESH_TOO_COARSE, not BC_MISMATCH).
+PIPE_COARSE_NCELLS = 2          # injected coarse radial mesh -> ~7.9% L2, false success
+PIPE_FINE_NCELLS = 32           # repaired (refined) radial mesh -> ~0.02% L2, passes

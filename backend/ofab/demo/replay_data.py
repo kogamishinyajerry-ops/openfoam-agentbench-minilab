@@ -15,6 +15,7 @@ from ..benchmark import build_scorecard, compute_reward, diagnose
 from ..benchmark import metrics as M
 from ..memory import mine_experience
 from .couette_case import build_second_case
+from .pipe_case import build_third_case
 from ..models import (
     EngineeringStatus,
     ExperimentResult,
@@ -401,6 +402,10 @@ def build_bundle(mode: RunMode = RunMode.REPLAY) -> dict:
         # unchanged scorecard/diagnose judge a different flow). Does not affect
         # any of the locked hero numbers above.
         "second_case": build_second_case(),
+        # Third case — widens the proof to a different HERO fault (coarse_mesh on a
+        # round pipe), still the same unchanged scorecard/diagnose. Additive; does
+        # not affect any locked hero/Couette numbers.
+        "third_case": build_third_case(),
         "scorecards": [s.model_dump(mode="json") for s in scorecards],
         "runs": [r.model_dump(mode="json") for r in experiment.runs],
     }

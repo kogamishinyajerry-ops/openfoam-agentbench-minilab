@@ -37,7 +37,7 @@ def test_bundle_top_level_keys(bundle: dict) -> None:
     required = {
         "case", "profiles", "runs", "scorecards", "diagnoses", "rewards",
         "workflows", "timeline", "comparison", "experience", "story", "flywheel",
-        "second_case",
+        "second_case", "third_case",
     }
     missing = required - set(bundle.keys())
     assert not missing, f"bundle missing keys: {sorted(missing)}"
@@ -263,6 +263,56 @@ def test_second_case_documents_inapplicable_fault(bundle: dict) -> None:
     na = bundle["second_case"]["not_applicable"]
     assert na["fault"] == "coarse_mesh"
     assert na["reason"]  # non-empty explanation
+
+
+# --------------------------------------------------------------------------- #
+# Third case (round pipe) — the benchmark generalises to a DIFFERENT fault too #
+# --------------------------------------------------------------------------- #
+def test_third_case_identity(bundle: dict) -> None:
+    tc = bundle["third_case"]
+    assert tc["case"]["id"] == "pipe_poiseuille"
+    assert tc["case"]["reynolds"] == pytest.approx(20.0)
+    assert tc["case"]["u_max"] == pytest.approx(0.20)   # round pipe: 2 * U_mean
+    # shares the hero case's benchmark tolerances (same judge, third flow)
+    assert tc["case"]["tolerances"]["qoi_l2"] == bundle["case"]["tolerances"]["qoi_l2"]
+
+
+def test_third_case_profiles_land_on_targets(bundle: dict) -> None:
+    p = bundle["third_case"]["profiles"]
+    assert p["reference"]["qoi_error"] == pytest.approx(0.0)
+    # under-resolved radial mesh -> ~7.9% (false success), refined -> within tolerance
+    assert p["failed"]["qoi_error"] == pytest.approx(0.079, abs=2e-3)
+    assert p["repaired"]["qoi_error"] < 0.05
+    assert p["failed"]["qoi_error"] > 0.05 > p["repaired"]["qoi_error"]
+
+
+def test_third_case_heroes_a_different_fault(bundle: dict) -> None:
+    """The crux of case 3: the SAME unchanged scorecard flags the pipe run as a
+    false success and the SAME unchanged diagnosis classifies it MESH_TOO_COARSE —
+    a *different* hero fault than the BC_MISMATCH of cases 1 and 2. The benchmark
+    generalises across flows AND across failure modes."""
+    tc = bundle["third_case"]
+    assert tc["hero_fault"] == "coarse_mesh"
+    assert tc["scorecard"]["false_success"] is True
+    assert tc["scorecard"]["overall_pass"] is False
+    assert tc["diagnosis"]["failure_mode"] == "MESH_TOO_COARSE"
+    assert tc["diagnosis"]["failure_mode"] != "BC_MISMATCH"
+    assert 0.0 < tc["diagnosis"]["confidence"] <= 1.0
+    assert tc["peak_deficit_pct"] > 0.0          # the clipped centreline peak
+    # and the refined-mesh run passes the same benchmark
+    assert tc["repaired_pass"] is True
+
+
+def test_third_case_completes_the_fault_to_flow_story(bundle: dict) -> None:
+    """The honest mirror of Couette: coarse_mesh is *not applicable* to the linear
+    Couette flow but is the pipe's natural hero — the framework matches faults to
+    flows. The two notes should be consistent across the bundle."""
+    tc_note = bundle["third_case"]["fault_fit_note"]
+    assert tc_note["fault"] == "coarse_mesh"
+    assert tc_note["reason"]
+    # the same fault that Couette marks not-applicable is the pipe's hero
+    assert bundle["second_case"]["not_applicable"]["fault"] == "coarse_mesh"
+    assert bundle["third_case"]["hero_fault"] == "coarse_mesh"
 
 
 # --------------------------------------------------------------------------- #

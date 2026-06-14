@@ -12,6 +12,7 @@ import numpy as np
 
 from ofab import physics
 from ofab import physics_couette as pc
+from ofab import physics_pipe as pp
 from ofab.benchmark import diagnose
 from ofab.models import (
     EngineeringStatus,
@@ -61,6 +62,40 @@ def test_same_diagnose_classifies_bc_fault_in_both_flows():
     )
     assert diagnose(pois).failure_mode.value == "BC_MISMATCH"
     assert diagnose(cou).failure_mode.value == "BC_MISMATCH"
+
+
+def test_same_diagnose_classifies_three_flows_including_a_different_fault():
+    """The strongest form of the claim: one unchanged diagnose() over THREE flows,
+    and the third heroes a *different* fault. Parabola(BC) + line(BC) both ->
+    BC_MISMATCH; round-pipe radial parabola(coarse mesh) -> MESH_TOO_COARSE. The
+    benchmark generalises across flows AND across failure modes."""
+    pois = _run(
+        "channel_poiseuille",
+        physics.failed_profile("bc_mismatch"),
+        physics.analytical_profile(),
+        physics.profile_features,
+    )
+    cou = _run(
+        "couette_shear", pc.failed_profile(), pc.analytical_profile(), pc.couette_features
+    )
+    pipe = _run(
+        "pipe_poiseuille", pp.failed_profile(), pp.analytical_profile(), pp.pipe_features
+    )
+    assert diagnose(pois).failure_mode.value == "BC_MISMATCH"
+    assert diagnose(cou).failure_mode.value == "BC_MISMATCH"
+    assert diagnose(pipe).failure_mode.value == "MESH_TOO_COARSE"
+
+
+def test_pipe_coarse_mesh_is_not_misread_as_bc():
+    """The pipe-specific feature extractor matters: a radial mesh fault keeps the
+    wall at no-slip (wall_slip ~ 0), so it must NOT trip the BC gate — it has to
+    route to MESH_TOO_COARSE from the clipped peak / faceting."""
+    pipe = _run(
+        "pipe_poiseuille", pp.failed_profile(), pp.analytical_profile(), pp.pipe_features
+    )
+    d = diagnose(pipe)
+    assert d.failure_mode.value == "MESH_TOO_COARSE"
+    assert d.failure_mode.value != "BC_MISMATCH"
 
 
 def test_same_diagnose_passes_clean_runs_in_both_flows():
