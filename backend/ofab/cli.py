@@ -183,6 +183,38 @@ def demo_couette_evidence():
     console.print(f"[dim]written: {ev['_path']}[/dim]")
 
 
+@demo_app.command("pipe-evidence")
+def demo_pipe_evidence():
+    """Run the third case (round pipe) on a live OpenFOAM container — an axisymmetric
+    wedge — and record what the same benchmark detected. The pipe's HERO fault is
+    coarse_mesh (the radial parabola a coarse mesh clips), the mirror of Couette where
+    that fault is N/A. Writes data/real_evidence_pipe.json + the frontend copy."""
+    from .demo import capture_pipe_evidence
+    from .runner.openfoam_runner import OpenFOAMUnavailable
+    try:
+        ev = capture_pipe_evidence()
+    except OpenFOAMUnavailable as exc:
+        console.print(f"[red]OpenFOAM unavailable: {exc}[/red]")
+        raise typer.Exit(1)
+    c = ev["correct"]
+    console.print(Panel.fit(
+        f"container [bold]{ev['container']}[/bold]  ·  案例 [bold]圆管层流（Hagen–Poiseuille）[/bold]\n"
+        f"几何 [dim]{ev['geometry']}[/dim]\n"
+        f"correct case: L2=[green]{c['qoi_error']*100:.2f}%[/green] "
+        f"(u_peak {c['u_peak_sampled']} vs {c['u_peak_analytical']})",
+        title="real OpenFOAM evidence — 第三个案例"))
+    t = Table(title="同一套基准检验在圆管上抓到的真实假成功（主场故障 = 网格太粗）")
+    t.add_column("fault"); t.add_column("L2"); t.add_column("residual")
+    t.add_column("false success"); t.add_column("diagnosis")
+    for f in ev["faults"]:
+        fs = "[red]yes[/red]" if f["false_success_detected"] else "no"
+        name = f"{f['fault']}{' ★' if f.get('is_hero') else ''}"
+        t.add_row(name, f"{f['qoi_error']*100:.1f}%", f"{f['residual_final']:.1e}",
+                  fs, f"{f['diagnosis']} ({f['confidence']:.0%})")
+    console.print(t)
+    console.print(f"[dim]written: {ev['_path']}[/dim]")
+
+
 @app.command()
 def run(
     ctx: typer.Context,

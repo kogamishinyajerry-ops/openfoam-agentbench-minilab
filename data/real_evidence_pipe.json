@@ -1,0 +1,66 @@
+{
+  "container": "ofab-openfoam",
+  "openfoam_env": "/usr/lib/openfoam/openfoam2312/etc/bashrc",
+  "case": "pipe_poiseuille",
+  "geometry": "axisymmetric wedge (5°), collapsed axis edge",
+  "note": "真实 OpenFOAM（icoFoam）圆管层流运行，用轴对称楔形网格。正确算例复现径向抛物线解析解（轴线峰值 = 2·U_mean、管壁 no-slip）；三种故障是被同一套基准检验真实抓到的「假成功」，其中「网格太粗」正是圆管的主场故障（径向抛物线被粗网格削平）——与 Couette 互为镜像。",
+  "correct": {
+    "execution_status": "success",
+    "engineering_status": "pass",
+    "qoi_error": 0.00063,
+    "residual_final": 3.7045538e-12,
+    "u_peak_sampled": 0.19982,
+    "u_peak_analytical": 0.2
+  },
+  "hero_fault": "coarse_mesh",
+  "faults": [
+    {
+      "fault": "coarse_mesh",
+      "is_hero": true,
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.0746,
+      "residual_final": 5.9663342e-12,
+      "features": {
+        "wall_slip": 0.0,
+        "peak_deficit": 0.06317,
+        "curvature_rmse": 0.01722
+      },
+      "false_success_detected": true,
+      "diagnosis": "MESH_TOO_COARSE",
+      "confidence": 0.88
+    },
+    {
+      "fault": "bc_mismatch",
+      "is_hero": false,
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.23762,
+      "residual_final": 3.7164322e-12,
+      "features": {
+        "wall_slip": 0.25,
+        "peak_deficit": 0.25045,
+        "curvature_rmse": 0.00063
+      },
+      "false_success_detected": true,
+      "diagnosis": "BC_MISMATCH",
+      "confidence": 0.8
+    },
+    {
+      "fault": "solver_setting_error",
+      "is_hero": false,
+      "execution_status": "success",
+      "engineering_status": "needs_repair",
+      "qoi_error": 0.24166,
+      "residual_final": 0.0018139366,
+      "features": {
+        "wall_slip": 0.0,
+        "peak_deficit": 0.30655,
+        "curvature_rmse": 0.00199
+      },
+      "false_success_detected": true,
+      "diagnosis": "RESIDUAL_NOT_CONVERGED",
+      "confidence": 0.95
+    }
+  ]
+}
