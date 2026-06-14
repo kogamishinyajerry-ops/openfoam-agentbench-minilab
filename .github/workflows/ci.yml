@@ -18,6 +18,11 @@ jobs:
           python-version: "3.12"
       - name: 安装后端(含测试依赖)
         run: pip install -e "backend[test]"
+      - name: 播种演示数据(填充经验存储 experience_memory.jsonl,供 recall E2E 测试)
+        # The replay bundle is committed, but the append-only experience store is
+        # gitignored runtime state — recall's E2E test needs it seeded. This mirrors
+        # the documented `ofab demo seed` workflow; tests themselves never write data/.
+        run: python -m ofab.cli demo seed
       - name: 跑 pytest(约 298 个用例,含头条数字回归锁)
         run: python -m pytest backend
 
