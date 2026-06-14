@@ -1,0 +1,44 @@
+# 基准检验契约 —— 圆管层流（第三个案例 Hagen–Poiseuille）。
+# 这是该案例「工程上算对，到底意味着什么」的唯一标准，也是可被人直接打开核对的「标准答案」。
+#
+# 与主线案例一样，圆管的契约在代码里由 backend 的 config.py 共享给出（build_scorecard /
+# diagnose 默认用 BenchmarkContract.from_config()，容差三件套 QOI_L2_TOL / RESIDUAL_TOL /
+# WALL_SLIP_TOL 三个案例完全共用——这正是「判卷老师一行不改、照样判另一种流动 + 另一种故障」
+# 的体现）。因此本文件是**说明性文档**：把第三个案例的标准答案与合格线摊开给人看，数值与
+# config.py 一致；test_contracts.py 会锁住二者不漂。
+case_id: pipe_poiseuille
+title: 圆管层流（Hagen–Poiseuille：水管里的稳定水流）
+
+physics:
+  pipe_radius_m: 0.005           # R，圆管半径（直径 2R = 0.01，与通道高 H 同量级）
+  pipe_length_m: 0.12            # L = 12 * 直径
+  mean_velocity_ms: 0.10         # U_mean，截面平均流速（体平均）
+  kinematic_viscosity_m2s: 5.0e-5   # 与另两个案例同一种流体
+  reynolds_d: 20                 # 基于直径的雷诺数，层流
+  u_max_ms: 0.20                 # 轴线峰值 = 2 * U_mean（圆管关系，区别于通道的 1.5 倍）
+  analytical: "u(r) = u_max * (1 - (r/R)^2)"   # 解析解（标准答案）：径向抛物线
+  # 管壁（r/R = 1）固定 no-slip（u=0），轴线（r/R = 0）取到峰值 u_max；稳态精确解是径向抛物线。
+
+qoi:
+  name: velocity_profile_l2_error
+  description: 沿半径方向的速度剖面相对解析解（径向抛物线）的相对 L2 误差（关键物理量 QoI）
+  n_points: 41
+
+reference:
+  path: ../references/pipe_poiseuille_reference.csv
+
+tolerances:                      # 与另两个案例共用同一套合格线（case-agnostic 判卷）
+  qoi_l2: 0.05                   # 工程合格要求：L2 误差 < 5%
+  residual: 1.0e-4               # 求解器最终残差必须低于此值
+  wall_slip: 0.05                # |u_管壁|/u_max 超过此值 => no-slip 被破坏
+
+checks:
+  - execution     # 进程退出码为 0       （普通测试只看得到这一层）
+  - residual      # 残差收敛到容差以下    （数值层面的及格线）
+  - qoi_l2        # 剖面贴合解析解        （工程层面的真相）
+
+# 注入故障（case-3 hero）：径向网格太粗（PIPE_COARSE_NCELLS=2）。单元平均采样把轴线峰值削平、
+# 把曲线压成折线 -> L2 ≈ 7.9%（假成功），加密到 32 格 -> ≈0.03%（合格）。wall_slip 特征只查
+# **管壁**（轴线峰值不算滑移），峰值亏损 + 折线 -> 诊断为 MESH_TOO_COARSE。
+# 与 Couette 互为镜像：「网格太粗」对线性 Couette 不适用、对弯曲的圆管抛物线正是主场——
+# 框架按案例匹配故障，不硬套。
