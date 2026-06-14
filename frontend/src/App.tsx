@@ -62,6 +62,13 @@ export default function App() {
             text={`合格线：误差 < ${(c.tolerances.qoi_l2 * 100).toFixed(0)}%`}
           />
         </div>
+
+        <p className="mt-4 max-w-3xl text-[11px] leading-relaxed text-slate-500">
+          <span className="font-medium text-slate-400">关于本页数据</span>：速度剖面与误差都由物理解析解
+          <span className="text-slate-300"> 真实算出、不是编的</span>；本页聚焦「判卷老师 → 反馈」这一层，
+          AI 的修复<span className="text-slate-300">决策轨迹是脚本演示</span>（隔离讲清机制，并非真实 LLM 智能体在跑）；
+          而页面底部「真实验证」一节，是在<span className="text-slate-300">真实 OpenFOAM</span> 里跑出来的结果。
+        </p>
       </header>
 
       <main className="space-y-6">

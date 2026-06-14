@@ -18,6 +18,10 @@ export default function RealEvidence() {
     }[];
   };
 
+  // The subtlest false success: its QoI is actually *below* the pass line, so a
+  // QoI-only check would let it through — only the residual gate catches it.
+  const solver = ev.faults.find((f) => f.fault === "solver_setting_error");
+
   return (
     <section className="glass relative overflow-hidden p-6">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -75,6 +79,13 @@ export default function RealEvidence() {
           </div>
         ))}
       </div>
+      {solver && (
+        <p className="reveal mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-center text-[12px] text-amber-100/90">
+          ⚠ 最隐蔽的一种：<span className="font-semibold text-amber-200">{FAULT_LABELS[solver.fault as Fault]}</span> 的误差只有
+          <span className="font-semibold text-amber-200"> {pct(solver.qoi_error)}</span>——低到连合格线都没超过，
+          <span className="font-semibold">光看误差根本发现不了</span>；是<span className="font-semibold text-amber-200">残差</span>把它揪出来的。
+        </p>
+      )}
       <p className="mt-3 text-center text-[11px] text-slate-500">
         正确案例复现了解析解的抛物线；每个注入的故障都是基准检验真实抓到并诊断正确的「假成功」。
         你也可以自己跑：{" "}

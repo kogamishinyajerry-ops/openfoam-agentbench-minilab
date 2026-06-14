@@ -81,6 +81,9 @@ export default function FlywheelRecall() {
         <span className="text-slate-600">·</span>
         <span className="text-sm text-emerald-100">每复用一次,飞轮就更快一点</span>
       </div>
+      <p className="mt-2 text-center text-[11px] text-slate-500">
+        示意路径：「命中错题本 → 少走弯路」的机制是真的；这里的轮数 / 耗时是为讲清楚而设的演示值,不是一次真实基准测量。
+      </p>
     </section>
   );
 }
