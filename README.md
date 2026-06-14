@@ -4,6 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
+> 🔗 **在线演示(点开即看,无需安装)**:**<https://kogamishinyajerry-ops.github.io/openfoam-agentbench-minilab/>**
+> 仪表盘以「回放模式」运行——所有数字都是真实算出后内置的,纯静态、不依赖后端。
+
 **让 AI 从「会跑仿真」变成「会算对、还越用越聪明」——用「基准检验反馈」(Benchmark Feedback) 把一个 CFD 智能体变成会自我改进的闭环。**
 
 这是一个小而完整、可以直接拿去路演的研究 Demo。它想说清一件事:给「AI 自动做 CFD 仿真」的工作流加上一道**基准检验**之后,AI 不再只是把 OpenFOAM「跑完」,而是**知道自己哪里算错了、该怎么改、改完到底有没有变好,并且把每一次失败都沉淀成可复用的经验。**
