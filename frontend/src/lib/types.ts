@@ -181,6 +181,32 @@ export interface SecondCase {
   not_applicable: { fault: string; label: string; reason: string };
 }
 
+export interface ThirdCase {
+  case: {
+    id: string;
+    title: string;
+    mean_velocity: number;
+    radius: number;
+    reynolds: number;
+    u_max: number;
+    kinematic_viscosity: number;
+    tolerances: { qoi_l2: number; residual: number; wall_slip: number };
+  };
+  profiles: {
+    reference: SecondCaseProfile;
+    failed: SecondCaseProfile;
+    repaired: SecondCaseProfile;
+  };
+  scorecard: SecondCaseScorecard;
+  diagnosis: Diagnosis;
+  repaired_pass: boolean;
+  peak_deficit_pct: number;
+  shared_benchmark: boolean;
+  hero_fault: string;
+  generalizes_note: string;
+  fault_fit_note: { fault: string; label: string; reason: string };
+}
+
 export interface Bundle {
   case: CaseInfo;
   story: { slogan: string; steps: string[] };
@@ -201,6 +227,7 @@ export interface Bundle {
   experience: ExperienceRecord[];
   flywheel: Flywheel;
   second_case: SecondCase;
+  third_case: ThirdCase;
   scorecards: unknown[];
   runs: RunResult[];
 }

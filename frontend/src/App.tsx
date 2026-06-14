@@ -10,6 +10,7 @@ import DiagnosisPanel from "./components/DiagnosisPanel";
 import ExperienceMemory from "./components/ExperienceMemory";
 import FlywheelRecall from "./components/FlywheelRecall";
 import SecondCaseCouette from "./components/SecondCaseCouette";
+import ThirdCasePipe from "./components/ThirdCasePipe";
 import RealEvidence from "./components/RealEvidence";
 import SectionNav, { type NavSection } from "./components/SectionNav";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -24,6 +25,7 @@ const SECTIONS: NavSection[] = [
   { id: "memory", label: "错题本" },
   { id: "recall", label: "复发复用" },
   { id: "secondcase", label: "举一反三" },
+  { id: "thirdcase", label: "圆管案例" },
   { id: "evidence", label: "真实验证" },
 ];
 
@@ -81,6 +83,7 @@ export default function App() {
         <Section id="memory" label="错题本"><ExperienceMemory /></Section>
         <Section id="recall" label="复发复用"><FlywheelRecall /></Section>
         <Section id="secondcase" label="举一反三"><SecondCaseCouette /></Section>
+        <Section id="thirdcase" label="圆管案例"><ThirdCasePipe /></Section>
         <Section id="evidence" label="真实验证"><RealEvidence /></Section>
       </main>
 
