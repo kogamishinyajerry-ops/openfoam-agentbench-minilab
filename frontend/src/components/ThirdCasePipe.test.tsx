@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import ThirdCasePipe from "./ThirdCasePipe";
 import { bundle, pct, FAILURE_SHORT } from "../lib/data";
+import pipeEvidence from "../data/realEvidencePipe.json";
 
 // 第三个案例（圆管）：把「举一反三」推到「换流动 + 换故障」。锁住屏幕上的关键结论确实
 // 来自 bundle.third_case——同一套基准检验在圆管上抓出的、由「网格太粗」导致的假成功 +
@@ -41,5 +42,20 @@ describe("ThirdCasePipe", () => {
     // 与 Couette 的「不适用」互为镜像：同一个故障，那边不适用、这边是主场
     expect(bundle.second_case.not_applicable.fault).toBe("coarse_mesh");
     expect(s.fault_fit_note.fault).toBe("coarse_mesh");
+  });
+
+  it("真实 OpenFOAM 证据条绑定到 realEvidencePipe.json（主场 coarse_mesh→MESH_TOO_COARSE）", () => {
+    const { container } = render(<ThirdCasePipe />);
+    const text = container.textContent ?? "";
+    // 容器名 + 正确算例误差确实来自真实证据 JSON（不是写死）
+    expect(text).toContain(pipeEvidence.container);
+    expect(text).toContain(pct(pipeEvidence.correct.qoi_error));
+    // 主场故障 = coarse_mesh，被同一套基准检验真实判成 MESH_TOO_COARSE（不是前两案的 BC）
+    const hero = pipeEvidence.faults.find((f) => f.is_hero)!;
+    expect(hero.fault).toBe("coarse_mesh");
+    expect(hero.diagnosis).toBe("MESH_TOO_COARSE");
+    expect(text).toContain(pct(hero.qoi_error));
+    // 数据契约：三种故障在真实硬件上都是被抓到的假成功
+    expect(pipeEvidence.faults.every((f) => f.false_success_detected)).toBe(true);
   });
 });

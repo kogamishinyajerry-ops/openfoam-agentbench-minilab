@@ -8,8 +8,24 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CircleDot, ShieldAlert, ScanSearch, CheckCircle2, Repeat } from "lucide-react";
-import { bundle, pct, FAILURE_SHORT } from "../lib/data";
+import { CircleDot, ShieldAlert, ScanSearch, CheckCircle2, Repeat, Waves } from "lucide-react";
+import { bundle, pct, FAILURE_SHORT, FAULT_LABELS } from "../lib/data";
+import pipeEvidence from "../data/realEvidencePipe.json";
+import type { Fault } from "../lib/types";
+
+type PipeEvidence = {
+  container: string;
+  geometry: string;
+  correct: { qoi_error: number; u_peak_sampled: number; u_peak_analytical: number };
+  faults: {
+    fault: string;
+    is_hero?: boolean;
+    qoi_error: number;
+    false_success_detected: boolean;
+    diagnosis: string;
+    confidence: number;
+  }[];
+};
 
 /**
  * 第三个案例：圆管 Hagen–Poiseuille 流。把「举一反三」再推一步——不只换流动，还换了
@@ -183,6 +199,69 @@ export default function ThirdCasePipe() {
           </p>
         </div>
       </div>
+
+      {/* 真实 OpenFOAM 验证 —— 圆管也在真刀真枪的轴对称楔形网格上跑出了证据 */}
+      <RealStrip ev={pipeEvidence as PipeEvidence} />
     </section>
+  );
+}
+
+function RealStrip({ ev }: { ev: PipeEvidence }) {
+  return (
+    <div className="mt-3 rounded-xl border border-sky-400/20 bg-sky-400/[0.05] p-4">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-sky-200">
+          <Waves size={14} /> 不是演的：真实 OpenFOAM（轴对称楔形网格）也验证过
+        </p>
+        <span className="chip border-sky-400/30 bg-sky-400/10 font-mono text-[10px] text-sky-200">
+          容器：{ev.container}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <EvCard
+          tone="good"
+          title="正确算例"
+          big={pct(ev.correct.qoi_error)}
+          sub={`复现径向抛物线 · 峰值 ${ev.correct.u_peak_sampled}/${ev.correct.u_peak_analytical}`}
+        />
+        {ev.faults.map((f) => (
+          <EvCard
+            key={f.fault}
+            tone={f.is_hero ? "hero" : "bad"}
+            title={`${FAULT_LABELS[f.fault as Fault] ?? f.fault}${f.is_hero ? " ★主场" : ""}`}
+            big={pct(f.qoi_error)}
+            sub={`→ ${FAILURE_SHORT[f.diagnosis] ?? f.diagnosis}（${Math.round(f.confidence * 100)}%）`}
+          />
+        ))}
+      </div>
+      <p className="mt-2 text-center text-[11px] text-slate-500">
+        自己跑：<code className="font-mono text-slate-400">ofab demo pipe-evidence</code>
+      </p>
+    </div>
+  );
+}
+
+function EvCard({
+  tone,
+  title,
+  big,
+  sub,
+}: {
+  tone: "good" | "bad" | "hero";
+  title: string;
+  big: string;
+  sub: string;
+}) {
+  const styles = {
+    good: { box: "border-emerald-400/25 bg-emerald-400/[0.06]", num: "text-emerald-300", t: "text-emerald-200" },
+    bad: { box: "border-rose-400/20 bg-rose-400/[0.05]", num: "text-rose-300", t: "text-rose-200" },
+    hero: { box: "border-amber-400/30 bg-amber-400/[0.07]", num: "text-amber-300", t: "text-amber-200" },
+  }[tone];
+  return (
+    <div className={`rounded-lg border ${styles.box} p-3`}>
+      <p className={`text-xs font-semibold ${styles.t}`}>{title}</p>
+      <p className={`stat-num mt-1 text-xl font-bold ${styles.num}`}>{big}</p>
+      <p className="mt-0.5 text-[10px] leading-tight text-slate-400">{sub}</p>
+    </div>
   );
 }
