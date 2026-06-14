@@ -185,6 +185,101 @@ def test_cli_benchmark_couette_flags_false_success(runner: CliRunner):
     assert sc["overall_pass"] is False
 
 
+# --------------------------------------------------------------------------- #
+# CLI — third case (round pipe): the --case flag switches flow AND the bare      #
+# invocation showcases the pipe's HERO fault (coarse_mesh), not the global       #
+# bc_mismatch default. This is what makes `ofab run --case pipe_poiseuille` a     #
+# real false-success demo instead of a vacuous clean pass.                       #
+# --------------------------------------------------------------------------- #
+def test_cli_run_pipe_case_switches_flow_and_heroes_coarse_mesh(runner: CliRunner):
+    """`ofab run --case pipe_poiseuille --mode mock` (no --fault) must run the THIRD
+    flow AND inject the pipe's hero fault coarse_mesh — NOT the global bc_mismatch
+    default (which the pipe's synthetic path doesn't model, so it would be a vacuous
+    clean pass). The result is a false success on a *different fault*: ran fine, needs
+    repair, radial mesh too coarse so the curved profile's peak is clipped (~7.9% L2)."""
+    result = runner.invoke(
+        cli_app, ["run", "--case", "pipe_poiseuille", "--mode", "mock"]
+    )
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+
+    assert run["case_id"] == config.PIPE_CASE_ID       # flag switched to the third flow
+    assert run["case_id"] != config.CASE_ID            # ... not the hero channel
+    assert run["case_id"] != config.COUETTE_CASE_ID    # ... not the Couette case
+    # the bare invocation defaults to the PIPE'S hero, not the global bc_mismatch.
+    assert run["fault"] == "coarse_mesh"
+    # ran fine yet engineering-wrong — the false success on a third flow + a new fault.
+    assert run["execution_status"] == "success"
+    assert run["engineering_status"] == "needs_repair"
+    assert 0.06 < run["qoi_error"] < 0.10              # clipped-peak band (~7.9%)
+    assert run["qoi_error"] > config.QOI_L2_TOL
+
+
+def test_cli_run_pipe_explicit_fault_is_honored_verbatim(runner: CliRunner):
+    """An explicit --fault is honored exactly — NOT silently swapped to the pipe's
+    hero. `--fault bc_mismatch` on the pipe records bc_mismatch (the synthetic pipe
+    doesn't model that fault, so it yields the clean parabola — an honest 'this fault
+    isn't injected here', not a fabricated failure). This guards the default-swap from
+    over-reaching into explicit user choices."""
+    result = runner.invoke(
+        cli_app,
+        ["run", "--case", "pipe_poiseuille", "--fault", "bc_mismatch", "--mode", "mock"],
+    )
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+    assert run["case_id"] == config.PIPE_CASE_ID
+    assert run["fault"] == "bc_mismatch"               # honored, NOT swapped to coarse_mesh
+    # explicit coarse_mesh reaches the same hero false success as the bare default.
+    r2 = runner.invoke(
+        cli_app,
+        ["run", "--case", "pipe_poiseuille", "--fault", "coarse_mesh", "--mode", "mock"],
+    )
+    assert r2.exit_code == 0, r2.output
+    run2 = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+    assert run2["fault"] == "coarse_mesh"
+    assert run2["engineering_status"] == "needs_repair"
+    assert run2["qoi_error"] > config.QOI_L2_TOL
+
+
+def test_cli_run_pipe_repaired_passes(runner: CliRunner):
+    """The repaired pipe case (refined radial mesh) crosses the pass line — the same
+    acceptance band as the other two cases, judged by the same unchanged benchmark."""
+    result = runner.invoke(
+        cli_app,
+        ["run", "--case", "pipe_poiseuille", "--mode", "mock", "--repaired"],
+    )
+    assert result.exit_code == 0, result.output
+    run = json.loads((paths.RUNS_DIR / "latest.json").read_text())
+    assert run["case_id"] == config.PIPE_CASE_ID
+    assert run["qoi_error"] < config.QOI_L2_TOL        # refined mesh resolves the parabola
+    assert run["engineering_status"] == "pass"
+
+
+def test_cli_benchmark_pipe_flags_mesh_false_success(runner: CliRunner):
+    """Generalisation to a different FAULT, end-to-end through the CLI: `ofab run
+    --case pipe_poiseuille` then `ofab benchmark` + `ofab diagnose` on runs/latest
+    runs the SAME unchanged scoring/diagnosis chain on the third flow, flags its
+    false success, and classifies it as MESH_TOO_COARSE — distinct from the
+    BC_MISMATCH the other two cases hero. Proof the benchmark is case- AND
+    fault-agnostic end-to-end, not just inside the pre-built bundle."""
+    r1 = runner.invoke(cli_app, ["run", "--case", "pipe_poiseuille", "--mode", "mock"])
+    assert r1.exit_code == 0, r1.output
+
+    r2 = runner.invoke(cli_app, ["benchmark", "runs/latest"])
+    assert r2.exit_code == 0, r2.output
+    assert "FALSE SUCCESS" in r2.output
+    sc = json.loads((paths.RUNS_DIR / "scorecard.json").read_text())
+    assert sc["false_success"] is True
+    assert sc["overall_pass"] is False
+
+    r3 = runner.invoke(cli_app, ["diagnose", "runs/latest"])
+    assert r3.exit_code == 0, r3.output
+    assert "MESH_TOO_COARSE" in r3.output              # the pipe's hero failure mode
+    dg = json.loads((paths.RUNS_DIR / "diagnosis.json").read_text())
+    assert dg["failure_mode"] == "MESH_TOO_COARSE"
+    assert dg["failure_mode"] != "BC_MISMATCH"         # ... NOT the other cases' hero
+
+
 def test_cli_benchmark_chain_flags_false_success(runner: CliRunner):
     """`ofab run` (bc_mismatch/mock) then `ofab benchmark runs/latest` runs the
     scoring chain end to end and prints the FALSE SUCCESS verdict."""

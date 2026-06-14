@@ -185,14 +185,24 @@ def demo_couette_evidence():
 
 @app.command()
 def run(
+    ctx: typer.Context,
     case: str = typer.Option("channel_poiseuille",
-                             help="case id: channel_poiseuille (hero) | couette_shear"),
+                             help="case id: channel_poiseuille (hero) | couette_shear | pipe_poiseuille"),
     fault: Fault = typer.Option(Fault.BC_MISMATCH, help="injected fault"),
     mode: RunMode = typer.Option(RunMode.REPLAY, help="replay | mock | openfoam"),
     repaired: bool = typer.Option(False, help="run the repaired (fixed) case"),
     workflow: Workflow = typer.Option(Workflow.AGENT_PLUS_BENCHMARK),
 ):
     """Generate (or replay) one OpenFOAM run and save it to runs/latest.json."""
+    # Did the user actually type --fault, or fall back to the global default? Each case
+    # heroes a DIFFERENT fault, so the bare `ofab run --case X` should showcase X's hero.
+    # bc_mismatch is the channel/Couette hero (and the global default); the pipe heroes
+    # coarse_mesh. We honor an explicit --fault exactly, but for the pipe's default we
+    # swap in its hero so `ofab run --case pipe_poiseuille` isn't a vacuous clean pass.
+    # (Compare the source enum by name: typer/click expose two distinct ParameterSource
+    # classes, so identity comparison against an imported member is unreliable.)
+    fault_is_default = ctx.get_parameter_source("fault").name == "DEFAULT"
+
     if case.lower() in {"couette", "couette_shear", "shear"}:
         # Second case (Couette): real solver for openfoam mode, deterministic
         # synthetic otherwise. The benchmark layer downstream is unchanged.
@@ -210,6 +220,36 @@ def run(
                 run_result = synthesize_couette_run(fault, repaired)
         else:
             run_result = synthesize_couette_run(fault, repaired)
+        _save_run(run_result)
+        _print_run(run_result)
+        return
+
+    if case.lower() in {"pipe", "pipe_poiseuille", "round_pipe"}:
+        # Third case (round pipe): deterministic synthetic run for mock/replay; a real
+        # axisymmetric solve for openfoam mode when its runner is available, else fall
+        # back to synthetic. The pipe's HERO fault is coarse_mesh (the radial parabola's
+        # curvature is exactly what a coarse mesh clips), so the bare invocation defaults
+        # to it — but an explicit --fault is honored verbatim. The benchmark layer below
+        # is unchanged for every fault.
+        pipe_fault = Fault.COARSE_MESH if fault_is_default else fault
+        from .demo.pipe_case import synthesize_pipe_run
+        if mode == RunMode.OPENFOAM:
+            try:
+                from .runner import openfoam_pipe
+                from .runner.openfoam_runner import OpenFOAMUnavailable
+                try:
+                    console.print("[cyan]running real OpenFOAM (pipe)…[/cyan]")
+                    run_result = openfoam_pipe.run(
+                        workflow, pipe_fault, repaired=repaired,
+                        has_benchmark=(workflow == Workflow.AGENT_PLUS_BENCHMARK))
+                except OpenFOAMUnavailable as exc:
+                    console.print(f"[yellow]OpenFOAM unavailable ({exc}); synthetic pipe.[/yellow]")
+                    run_result = synthesize_pipe_run(pipe_fault, repaired)
+            except ImportError:
+                console.print("[yellow]real pipe runner not available; synthetic pipe.[/yellow]")
+                run_result = synthesize_pipe_run(pipe_fault, repaired)
+        else:
+            run_result = synthesize_pipe_run(pipe_fault, repaired)
         _save_run(run_result)
         _print_run(run_result)
         return
