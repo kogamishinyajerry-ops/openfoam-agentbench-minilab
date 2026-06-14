@@ -6,7 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "ofab"
 version = "0.1.0"
 description = "OpenFOAM-AgentBench MiniLab — Benchmark-Feedback CFD agent loop (backend + CLI + API)"
-readme = "../README.md"
+# NOTE: no `readme` here — setuptools forbids referencing files outside the package
+# dir (../README.md), which breaks a clean `pip install -e backend` (e.g. in CI). The
+# project README lives at the repo root; `description` above is the package metadata.
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.6",
