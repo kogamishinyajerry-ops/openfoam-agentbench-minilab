@@ -129,20 +129,20 @@ python3 -m venv .venv
 
 ### 运行测试(后端 pytest + 前端 vitest)
 
-后端带一套 263 个用例的测试,把这套闭环的每一个不变量都锁住了:解析解的正确性、
-「假成功」检测、失效模式诊断的门优先级、奖励公式、两个算例的全部头条数字、两份基准检验契约
-与解析解参考表、两个案例的真实 OpenFOAM 证据(含前端副本字节一致)——相当于把这个项目
+后端带一套 297 个用例的测试,把这套闭环的每一个不变量都锁住了:解析解的正确性、
+「假成功」检测、失效模式诊断的门优先级、奖励公式、三个算例的全部头条数字、三份基准检验契约
+与解析解参考表、三个案例的真实 OpenFOAM 证据(含前端副本字节一致)——相当于把这个项目
 「检验能抓住错误」的主张,反过来用在它自己身上。
-前端另有 30 个 vitest 用例,锁住看板的「数字绑定」(屏幕上的数字确实来自数据包而非写死,
-覆盖前后对比卡 / 对照实验时间线 / 智能审计诊断 / 经验飞轮 / 举一反三 / 真实 OpenFOAM 证据等
-头条数字)、错误边界(单区块抛错不白屏)与工具函数。
+前端另有 34 个 vitest 用例,锁住看板的「数字绑定」(屏幕上的数字确实来自数据包而非写死,
+覆盖前后对比卡 / 对照实验时间线 / 智能审计诊断 / 经验飞轮 / 举一反三(两个扩展案例)/ 真实
+OpenFOAM 证据等头条数字)、错误边界(单区块抛错不白屏)与工具函数。
 
 ```bash
-# 后端(263 个用例)
+# 后端(297 个用例)
 ./.venv/bin/pip install -e "backend[test]"   # 装上 pytest + httpx
-./.venv/bin/python -m pytest backend          # 263 个用例,全绿
+./.venv/bin/python -m pytest backend          # 297 个用例,全绿
 
-# 前端(30 个用例)
+# 前端(34 个用例)
 cd frontend && npm install && npm test        # vitest,全绿
 
 # 或一键跑全部(后端 + 前端):
@@ -224,11 +224,33 @@ docs/                  # 演示分镜脚本(3–4 分钟视频)
 复现命令:`ofab demo couette-evidence`(需要一个在跑的 OpenFOAM 容器);数据见
 [`data/real_evidence_couette.json`](data/real_evidence_couette.json),看板「举一反三」区块底部也有展示。
 
+## 再举一反三:第三个算例(圆管 Hagen–Poiseuille 流)—— 换流动**也换故障**
+
+第二个案例证明了「换一种流动照样判」。第三个案例把这一点再推一步:**不只换流动,还换了
+主打的故障类型**。圆管层流(`pipe_poiseuille`,雷诺数 Re_D ≈ 20)的精确解是一条**径向抛物线**
+`u(r) = u_max·(1 − (r/R)²)`,管中心最快(u_max = 2·U_mean,圆管关系,区别于通道的 1.5 倍)、
+贴壁为 0。关键在于:这次主打的故障是**「网格太粗」**——径向网格太稀,会把中心峰值削平、把光滑
+曲线压成折线。**判卷代码(`build_scorecard` / `diagnose`)依然一行没改**,照样抓出假成功
+(L2 ≈ 7.9%),并判明是 `MESH_TOO_COARSE`(**而不是前两案的 `BC_MISMATCH`**),加密网格后判合格。
+这与 Couette 互为镜像:「网格太粗」对线性的 Couette **不适用**(任意网格都精确还原直线),到了圆管
+这条弯曲的抛物线上**正是主场**——框架按算例匹配故障,不硬套。锁在 `test_physics_pipe.py`、
+`test_replay_bundle.py`(third_case 锁)、`test_generalization.py`(同一 diagnose 判三种流动、两种故障)里。
+
+**圆管也在真实 OpenFOAM 上验证过**(用轴对称**楔形网格**做的真 `icoFoam` 求解):正确算例 L2
+**0.06%**(峰值流速 0.1998 vs 解析 0.2000,精确复现径向抛物线)、`coarse_mesh`(★主场)**7.5%** →
+被抓成假成功并诊断 `MESH_TOO_COARSE`(88%)、`bc_mismatch` **23.8%** → `BC_MISMATCH`(80%)、
+`solver_setting_error` **24.2%** → `RESIDUAL_NOT_CONVERGED`(95%)。粗网格在管壁附近的采样会读出一个
+**虚假的滑移假象**(本会把诊断误导到边界条件),运行器改为直接测量管壁面的真实速度(no-slip 严格为 0,
+而非粗网格的线性外插),假象消失、诊断回到正确的网格问题——这正是「老实测量、别让假象带偏判卷」的体现。
+复现命令:`ofab demo pipe-evidence`;数据见 [`data/real_evidence_pipe.json`](data/real_evidence_pipe.json),
+看板「圆管案例」区块底部也有展示。详见 [`backend/ofab/physics_pipe.py`](backend/ofab/physics_pipe.py)
+与 [`backend/ofab/runner/openfoam_pipe.py`](backend/ofab/runner/openfoam_pipe.py)。
+
 ## 刻意不做的部分
 
-只做**两个能被解析解验证的最小算例**(Poiseuille + Couette,够证明可泛化);不做完整 CFD
-案例库,不做多智能体编排,不做 HPC,不做复杂三维几何,不做工业级验证。这是一个**最小可用的
-闭环**——正因为它跑通了,才值得去搭后面那一大套。
+只做**三个能被解析解验证的最小算例**(通道 Poiseuille + Couette + 圆管 Poiseuille,够证明
+「换流动 + 换故障」都能泛化);不做完整 CFD 案例库,不做多智能体编排,不做 HPC,不做复杂三维
+几何,不做工业级验证。这是一个**最小可用的闭环**——正因为它跑通了,才值得去搭后面那一大套。
 
 ## 这件事的意义
 

@@ -38,7 +38,7 @@ runner (mock | replay | openfoam)  →  RunResult
 ./.venv/bin/ofab experiment experiments/pilot_001/protocol.yaml   # artifacts + report
 ```
 
-任何会影响数字的后端改动之后，都要重新 seed，好让 `frontend/src/data/demoRuns.json` 和 `data/real_evidence.json`（如果你重跑过 `ofab demo real-evidence`）保持同步。第二个案例的真实证据用 `ofab demo couette-evidence` 重跑（同写 `data/real_evidence_couette.json` 与前端副本）。真实运行需要一个在跑的 OpenFOAM 容器——本机的 `ofab-openfoam`（ESI v2312）会话间会自动停掉，先 `docker start ofab-openfoam` 再跑。
+任何会影响数字的后端改动之后，都要重新 seed，好让 `frontend/src/data/demoRuns.json` 和 `data/real_evidence.json`（如果你重跑过 `ofab demo real-evidence`）保持同步。第二个案例的真实证据用 `ofab demo couette-evidence` 重跑（同写 `data/real_evidence_couette.json` 与前端副本）；第三个案例（圆管）用 `ofab demo pipe-evidence` 重跑（同写 `data/real_evidence_pipe.json` 与前端副本）。真实运行需要一个在跑的 OpenFOAM 容器——本机的 `ofab-openfoam`（ESI v2312）会话间会自动停掉，先 `docker start ofab-openfoam` 再跑。
 
 ## 如何加一个新故障（How to add a new fault）
 
@@ -66,14 +66,16 @@ runner (mock | replay | openfoam)  →  RunResult
 4. `runner/openfoam_couette.py` —— 真实运行器（复用 `openfoam_runner` 的容器发现/日志解析），生成该案例的 OpenFOAM 算例；用解析解**自校验**（正确算例必须复现解析解，否则不提交证据）。
 5. `demo/couette_evidence.py` + CLI `ofab demo couette-evidence` —— 捕获真实证据，同写 `data/` 与 `frontend/src/data/` 两份。
 6. 前端 `SecondCaseCouette.tsx` + `App.tsx`（加一个 `<Section>`）+ `SectionNav` 条目；`lib/types.ts` 加契约。
-7. 测试：`test_physics_couette.py`（不变量）、`test_replay_bundle.py`（second_case 锁）、`test_openfoam_couette.py`（算例生成 + 证据）、`test_generalization.py`（同一 diagnose 判两个案例）。
+7. 测试：`test_physics_couette.py`（不变量）、`test_replay_bundle.py`（second_case 锁）、`test_openfoam_couette.py`（算例生成 + 证据）、`test_generalization.py`（同一 diagnose 判三种流动、两种故障）。
 8. 老实标注**不适用的故障**：Couette 是线性解，`coarse_mesh` 在任意网格上都精确还原 → 在 `not_applicable` 里说明，并用一次真实粗网格运行（L2≈0）实证。框架按案例匹配故障，不硬套。
 
 > 第二案例 CANON：`couette_shear`，下壁固定 no-slip、上盖板拖动 U_lid = 0.10 m/s，H = 0.01 m，ν = 5e-5，Re ≈ 20。解析解 u(y) = U_lid·y/H（直线）。注入故障 = 静止壁滑移（slip 0.18 → L2 恰 18%；修复 0.02 → 2%）。真实运行实测：正确 0.00% / bc 18.0%→BC_MISMATCH(73%) / solver 74.9%→RESIDUAL_NOT_CONVERGED(95%) / 粗网格 ≈0.01% 合格（实证不适用）。`ofab run --case couette_shear --mode openfoam|mock` 可直接跑。
 
+> 第三案例 CANON：`pipe_poiseuille`（圆管 Hagen–Poiseuille），半径 R = 0.005 m、长 L = 0.12 m、U_mean = 0.10 m/s、ν = 5e-5、Re_D ≈ 20。解析解 u(r) = u_max·(1 − (r/R)²)，u_max = 2·U_mean = 0.20（**径向抛物线**，区别于通道的 1.5 倍关系）。**主场故障 = `coarse_mesh`**（与前两案的 `bc_mismatch` 不同）：合成路径 PIPE_COARSE_NCELLS=2 的单元平均削峰 → L2 ≈ 7.9% 假成功 → MESH_TOO_COARSE，加密 32 格 → 合格。`pipe_features` 的 wall_slip 只查 r/R=1 的**管壁**（轴线 r/R=0 是峰值，不算滑移）。CLI 用 `ctx.get_parameter_source` 区分显式/默认 --fault：裸 `ofab run --case pipe_poiseuille --mode mock` 默认注入其主场 coarse_mesh（不是全局默认 bc_mismatch），显式 --fault 一律逐字尊重。真实运行用**轴对称楔形网格**（5° 楔、塌缩轴边 hex (0 1 2 3 0 1 4 5)、adjustTimeStep maxCo 0.5）：正确 0.06%（峰值 0.1998 vs 0.2000）/ coarse 7.5%→MESH_TOO_COARSE(88%) / bc 23.8%→BC_MISMATCH(80%) / solver 24.2%→RESIDUAL_NOT_CONVERGED(95%)。**关键坑**：粗网格的线 sample 在管壁处会外插出虚假滑移（→ 误诊 BC），故 `openfoam_pipe.py` 用 `surfaceFieldValue` areaAverage 测真实管壁速度（no-slip 严格 0）锚定剖面壁点——老实测量、不让采样假象带偏判卷。`ofab run --case pipe_poiseuille --mode openfoam|mock`、`ofab demo pipe-evidence` 可直接跑。
+
 ## 审查纪律（Review discipline）
 
-涉及安全 / 契约敏感的改动（run / benchmark / diagnosis 这条路径、真实 OpenFOAM 运行器、任何 JSON schema）值得请第二双眼睛看。宣称「做完」之前，跑 `./.venv/bin/python -m pytest backend`（263 个用例，锁住两个案例的物理不变量 / 假成功检测 / 诊断门 / 奖励公式 / 全部头条数字 / 泛化主张 / 两份契约与参考表 / 两案例真实证据），把整条 CLI 链（`run → benchmark → diagnose → reward`）重跑一遍，并跑前端 `npm test`（30 个）+ `npm run build`，或一键 `make verify`。「做完」的意思是这条闭环能**复现**，而不是「我觉得它能跑」。
+涉及安全 / 契约敏感的改动（run / benchmark / diagnosis 这条路径、真实 OpenFOAM 运行器、任何 JSON schema）值得请第二双眼睛看。宣称「做完」之前，跑 `./.venv/bin/python -m pytest backend`（297 个用例，锁住三个案例的物理不变量 / 假成功检测 / 诊断门 / 奖励公式 / 全部头条数字 / 泛化主张 / 三份契约与参考表 / 三案例真实证据），把整条 CLI 链（`run → benchmark → diagnose → reward`）重跑一遍，并跑前端 `npm test`（34 个）+ `npm run build`，或一键 `make verify`。「做完」的意思是这条闭环能**复现**，而不是「我觉得它能跑」。
 
 > 改了 `physics.py` / `config.py` 里任何会影响数字的东西后：先 `ofab demo seed` 重新生成回放包，再 `pytest backend`——`test_replay_bundle.py` 是头条数字的回归锁，会立刻告诉你哪个数字漂了、以及前端 `demoRuns.json` 是否还和后端同步。
 
