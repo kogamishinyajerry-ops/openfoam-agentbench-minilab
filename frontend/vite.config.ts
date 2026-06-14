@@ -5,7 +5,13 @@ import react from "@vitejs/plugin-react";
 // The dashboard runs entirely off the bundled demoRuns.json (replay mode), so it
 // works with no backend. When the FastAPI backend is up, /api is proxied for the
 // live "run" endpoint.
+// GitHub Pages serves the site under /<repo>/ (a sub-path), not the domain root.
+// The Pages workflow sets VITE_BASE to "/openfoam-agentbench-minilab/" so asset
+// URLs resolve there; local dev / preview leave it unset and serve from "/".
+const base = process.env.VITE_BASE ?? "/";
+
 export default defineConfig({
+  base,
   plugins: [react()],
   server: {
     port: 5173,

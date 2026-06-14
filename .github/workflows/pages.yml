@@ -1,0 +1,54 @@
+name: Deploy Pages
+
+# 把前端仪表盘（replay 模式，纯静态、不需要后端）发布到 GitHub Pages,
+# 给路演一个可点的在线地址。每次 push 到 main 自动重新部署。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 让本工作流能写 Pages 部署所需的权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署；新 push 取消进行中的旧部署
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建静态仪表盘
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装前端依赖
+        run: npm ci
+        working-directory: frontend
+      - name: 生产构建(子路径 base 指向 Pages 仓库路径)
+        env:
+          VITE_BASE: /openfoam-agentbench-minilab/
+        run: npm run build
+        working-directory: frontend
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: 部署到 Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
